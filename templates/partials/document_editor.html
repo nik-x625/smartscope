@@ -1,0 +1,185 @@
+<!-- 
+to edit the content of a document item
+
+this html file is rendered when the user clicks on a document item to edit
+ in the app.py, the route function is @app.route('/get_document/<item_id>', methods=['GET'])
+ calls this html file
+-->
+
+<!-- 
+This template displays the document editor interface for editing a document item's content.
+It includes a form with fields for the title and content, auto-save functionality,
+and save/cancel buttons. The form uses HTMX for asynchronous updates.
+-->
+
+<form class="p-2" id="editor-form">
+  <input type="hidden" id="current_item_id" name="item_id" value="{{ item.id }}">
+  
+  <!-- Title field -->
+  <div class="mb-3">
+    <label for="title" class="form-label text-light">Title</label>
+    <input type="text" class="form-control bg-dark text-light border-secondary"
+      id="title" name="title" placeholder="Enter title" value="{{ item.title }}"
+      hx-post="/auto_save_document"
+      hx-trigger="keyup changed delay:2000ms, blur"
+      hx-include="#current_item_id, #content"
+      hx-target="#save-indicator"
+      hx-swap="innerHTML" />
+  </div>
+  
+  
+  <!-- Content Field-->
+  <div class="mb-3">
+    <label for="content" class="form-label text-light">Content</label>
+    <textarea class="form-control bg-dark text-light border-secondary" 
+      id="content" name="content" rows="12" placeholder="Enter content"
+      hx-post="/auto_save_document"
+      hx-trigger="keyup changed delay:2000ms, blur"
+      hx-include="#current_item_id, #title"
+      hx-target="#save-indicator"
+      hx-swap="innerHTML">{{ item.content }}</textarea>
+  </div>
+  
+  <!-- Brief description of the save/cancel buttons -->
+  <!-- The save button saves the document with auto-save functionality -->
+  <!-- The cancel button resets the form to its original state -->
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <!-- Save button with auto-save functionality -->
+      <!-- Opens the save document modal when clicked -->
+      <button type="button" class="btn btn-primary me-1"
+        hx-post="/auto_save_document"
+        hx-include="#current_item_id, #title, #content"
+        hx-target="#save-indicator"
+        hx-swap="innerHTML"
+        data-bs-toggle="modal" data-bs-target="#saveDocumentModal">
+        <i class="bi bi-check-lg"></i>Save
+      </button>
+      <!-- Cancel button to reset the form -->
+      <!-- Closes the save document modal when clicked -->
+      <button type="button" class="btn btn-outline-secondary" onclick="document.querySelector('#editor-form').reset()">
+        <i class="bi bi-x-lg"></i>Cancel
+      </button>
+    </div>
+    <div class="text-end">
+      <!-- Save indicator to show the status of the save operation -->
+      <!-- Displays a green checkmark when the save operation is successful -->
+      <div id="save-indicator" class="text-success small"></div>
+      <!-- Additional information about the auto-save feature -->
+      <div class="text-muted small mt-1">
+        <i class="bi bi-info-circle me-1"></i>Content is automatically saved while you type.
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Save Document Modal -->
+<!-- This modal allows users to save their document -->
+<!-- It includes a form with fields for the title and content -->
+<!-- The modal is centered and has a dark theme with a border -->
+<div class="modal fade" id="saveDocumentModal" tabindex="-1" aria-labelledby="saveDocumentModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-bottom border-secondary">
+        <h5 class="card-title mb-3">
+          <i class="bi bi-file-earmark-check me-2"></i>Save Document
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-3">You're about to save this document permanently. This will convert your draft into a fixed document that can be accessed from your document library.</p>
+        
+        <div class="mb-3">
+          <label for="documentTitle" class="form-label">Document Title</label>
+          <input type="text" class="form-control bg-dark text-light border-secondary" 
+                id="documentTitle" name="title" 
+                value="Project Report" required>
+          <div class="form-text text-muted">Choose a descriptive title for your document.</div>
+        </div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" 
+                hx-post="/save_document"
+                hx-confirm="Are you sure you want to save this document? This will change its status from draft to saved."
+                hx-target="#save-status">
+          <i class="bi bi-save me-2"></i>Save Document
+        </button>
+      </div>
+      <div id="save-status" class="mt-2"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Update the title in the sidebar when it changes
+document.addEventListener('htmx:afterRequest', function(evt) {
+  if (evt.detail.elt.id === 'title' || evt.detail.elt.classList.contains('btn-primary')) {
+    const currentItemId = document.getElementById('current_item_id').value;
+    const title = document.getElementById('title').value;
+    const sidebarItem = document.querySelector(`[data-item-id="${currentItemId}"] span`);
+    if (sidebarItem && title !== sidebarItem.textContent) {
+      sidebarItem.textContent = title;
+    }
+  }
+});
+
+// Populate the document title input with the current first chapter title
+document.addEventListener('DOMContentLoaded', function() {
+  // Set up modal
+  const modal = document.getElementById('saveDocumentModal');
+  const modalInstance = new bootstrap.Modal(modal);
+  
+  modal.addEventListener('show.bs.modal', function() {
+    // Find the first chapter title to use as default document title
+    const firstItem = document.querySelector('.doc-item-content');
+    if (firstItem) {
+      const firstItemTitle = firstItem.querySelector('span').textContent;
+      if (firstItemTitle) {
+        document.getElementById('documentTitle').value = firstItemTitle;
+      }
+    }
+  });
+  
+  // Set up save button
+  document.getElementById('saveDocumentBtn').addEventListener('click', function() {
+    const title = document.getElementById('documentTitle').value;
+    if (!title) {
+      alert('Please enter a document title');
+      return;
+    }
+    
+    // Hide the modal first
+    modalInstance.hide();
+    
+    // After hiding, set up a fetch request to save the document
+    modal.addEventListener('hidden.bs.modal', function onHidden() {
+      // Remove this listener to avoid duplicate calls
+      modal.removeEventListener('hidden.bs.modal', onHidden);
+      
+      // Create and send the fetch request
+      fetch('{{ url_for("create_edit_doc") }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          'title': title,
+          'user_id': '{{ user_id }}'
+        })
+      })
+      .then(response => {
+        if (response.ok) {
+          // Load docs page in mainContent
+          htmx.ajax('GET', '/docs', {target: '#mainContent'});
+        } else {
+          console.error('Error saving document');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+      });
+    }, {once: true}); // Use {once: true} as alternate way to ensure one-time execution
+  });
+});
+</script>

@@ -1,0 +1,16 @@
+<!-- the form to change the document title including the SAVE and CANCEL buttons-->
+<form hx-post="/edit-title" hx-target="#title-container" hx-swap="innerHTML" class="d-flex gap-2">
+    <input type="hidden" name="doc_id" value="{{ doc_id }}">
+    <input type="hidden" name="current_title" value="{{ doc_title }}">
+    <input type="text" name="title" class="form-control bg-dark text-light border-secondary" value="{{ doc_title }}" required>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <button type="button" 
+            class="btn btn-outline-secondary btn-sm"
+            hx-get="/edit-title-form?doc_id={{ doc_id }}&doc_title={{ doc_title }}&action=cancel"
+            hx-target="#title-container"
+            hx-swap="innerHTML">
+        Cancel
+    </button>
+</form> 
+
+

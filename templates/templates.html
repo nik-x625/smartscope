@@ -1,0 +1,35 @@
+<!-- Templates Management Page -->
+<div class="card">
+  <div class="card-body">
+    <h3 class="card-title">Templates Management</h3>
+    {% if message %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      {{ error }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+    <p class="card-text">
+      Manage your templates here. Create, edit, and organize your templates for quick access.
+    </p>
+
+    <div class="mt-4">
+      <button class="btn btn-primary" hx-get="/template-form" hx-target="#formContainer" hx-swap="innerHTML">
+        <i class="bi bi-plus-circle"></i> New Template
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Form Container -->
+<div id="formContainer"></div>
+
+<!-- Templates List -->
+<div id="templatesList" hx-get="/templates-list" hx-trigger="refreshTemplates from:body">
+  {% include 'templates_list.html' %}
+</div> 

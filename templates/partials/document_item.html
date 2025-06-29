@@ -1,0 +1,25 @@
+{% if item.children and item.children|length > 0 %}
+  <div class="doc-item">
+    <div class="doc-item-header" data-bs-toggle="collapse" data-bs-target="#collapse{{ item.id }}" data-item-id="{{ item.id }}">
+      <i class="bi bi-folder-fill me-2 text-light"></i>
+      <span class="text-light">{{ item.title }}</span>
+      <i class="bi bi-chevron-down ms-auto text-light"></i>
+    </div>
+    <div class="collapse {% if is_new %}show{% endif %}" id="collapse{{ item.id }}">
+      <div class="ms-3 mt-1">
+        {% for child in item.children %}
+          {% with item=child %}
+            {% include 'partials/document_item.html' %}
+          {% endwith %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+{% else %}
+  <div class="doc-item">
+    <div class="doc-item-content" hx-get="/get_document?doc_id={{ doc_id }}&item_id={{ item.id }}" hx-target="#editor-content" data-item-id="{{ item.id }}" data-doc-id="{{ doc_id }}">
+      <i class="bi bi-file-text me-2 text-light"></i>
+      <span class="text-light">{{ item.title }}</span>
+    </div>
+  </div>
+{% endif %}

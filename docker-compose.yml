@@ -1,0 +1,41 @@
+services:
+  web_react:
+    build: .
+    image: smartscope_image_react
+    container_name: smartscope_react
+    ports:
+      - "9000:9000"
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_APP=app_react_front.py
+      - FLASK_ENV=development
+      - MONGO_URI=mongodb://mongodb:27017/smartscope
+    depends_on:
+      - mongodb
+
+  web_htmx:
+    build: .
+    image: smartscope_image_htmx
+    container_name: smartscope_htmx
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_APP=app_htmx.py
+      - FLASK_ENV=development
+      - MONGO_URI=mongodb://mongodb:27017/smartscope
+    depends_on:
+      - mongodb
+
+  mongodb:
+    container_name: smartscope_mongodb
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  mongodb_data: 

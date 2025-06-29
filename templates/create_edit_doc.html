@@ -1,0 +1,190 @@
+{% macro render_sidebar(items, level=0, parent_id="") %}
+{% for item in items %}
+{% with item=item %}
+{% include 'partials/document_item.html' %}
+{% endwith %}
+{% endfor %}
+{% endmacro %}
+
+<div class="container-fluid p-0">
+  <div class="row g-0">
+    <!-- Document structure navigation column -->
+    <div class="col-md-3" style="height: 100vh; overflow-y: auto; background-color: #4c5f71;">
+      <div class="p-2">
+        <div class="doc-card mb-3">
+          <div class="doc-card-header">
+
+            <div id="title-container" hx-swap="innerHTML">
+              {% include 'partials/_title.html' %}
+            </div>
+
+          </div>
+          <div class="doc-card-body">
+
+            <!-- Root documentation item -->
+            <div class="doc-item mb-2">
+              <div class="doc-item-header" data-bs-toggle="collapse" data-bs-target="#documentationCollapse">
+                <i class="bi bi-book-fill me-2 text-light"></i>
+                <span class="text-light">Document structure</span>
+                <i class="bi bi-chevron-down ms-auto text-light"></i>
+              </div>
+              <div class="collapse show" id="documentationCollapse">
+                <div class="ms-3 mt-2" id="document-tree">
+                  {{ render_sidebar(document) }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Add Chapter button -->
+            <div class="add-chapter-btn mt-3">
+              <button class="btn btn-outline-secondary w-100 text-muted" id="add-chapter-btn">
+                <i class="bi bi-plus-circle me-2"></i>Add Chapter
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+
+    <div class="col-md-9" style="height: 100vh; overflow-y: auto; background-color: #4c5f71;" >
+      <div class="p-2 ps-1 ">
+        <div class="doc-card mb-3">
+
+
+          <div class="doc-card-body" id="editor-content">
+            <div class="d-flex justify-content-center align-items-center h-100 text-light">
+              <div class="text-center">
+                <i class="bi bi-file-earmark-text" style="font-size: 3rem;"></i>
+                <h3 class="mt-3">Select a document section</h3>
+                <p class="text-muted">Click on a section in the document structure to edit its content</p>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+
+  </div>
+</div>
+
+<style>
+  .doc-card {
+    background-color: #212529;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .doc-card-header {
+    padding: 12px 16px;
+    background-color: #5f6871;
+    color: white;
+  }
+
+  .doc-card-body {
+    padding: 16px;
+    background-color: #31465a;
+  }
+
+  .doc-item-header,
+  .doc-item-content {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.95rem;
+  }
+
+  .doc-item-header:hover,
+  .doc-item-content:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .doc-item {
+    margin-bottom: 4px;
+  }
+
+  .add-chapter-btn button {
+    border: 1px dashed #6c757d;
+    background-color: transparent;
+    color: #adb5bd;
+    font-size: 0.9rem;
+    padding: 8px;
+  }
+
+  .add-chapter-btn button:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // Initialize - select first item if available
+    const firstItem = document.querySelector('.doc-item-content');
+    if (firstItem) {
+      // Simulate click on the first available document item
+      setTimeout(() => {
+        firstItem.click();
+      }, 500);
+    }
+
+    // Add chapter button
+    document.getElementById('add-chapter-btn').addEventListener('click', function () {
+      const chapterTitle = prompt('Enter chapter title:', 'New Chapter');
+      if (!chapterTitle) return; // User cancelled
+
+      fetch('/add_document_item', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          'title': chapterTitle
+        })
+      })
+        .then(response => response.text())
+        .then(html => {
+          // Append the new chapter to the document tree
+          document.getElementById('document-tree').insertAdjacentHTML('beforeend', html);
+
+          // Find the newly added item's content element and click it
+          const newItemContent = document.querySelector('.doc-item:last-child .doc-item-content');
+          if (newItemContent) {
+            newItemContent.click();
+          }
+        })
+        .catch(error => {
+          console.error('Error adding chapter:', error);
+          alert('Failed to add chapter');
+        });
+    });
+
+    // Return to document list button
+    const returnToListBtn = document.createElement('button');
+    returnToListBtn.className = 'btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-3';
+    returnToListBtn.innerHTML = '<i class="bi bi-arrow-left me-1"></i> Back to documents';
+    returnToListBtn.addEventListener('click', function () {
+      const leaveConfirm = confirm('Return to document list? Unsaved changes will be temporarily stored.');
+      if (leaveConfirm) {
+        window.location.href = '/docs';
+      }
+    });
+    document.querySelector('.container-fluid').appendChild(returnToListBtn);
+
+    // Set up form submission to save permanently
+    window.addEventListener('beforeunload', function (e) {
+      const saveIndicator = document.getElementById('save-indicator');
+      if (saveIndicator && saveIndicator.textContent.includes('Saving')) {
+        // If we're in the middle of a save, show a warning
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    });
+  });
+</script>

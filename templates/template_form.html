@@ -1,0 +1,71 @@
+<!-- Template Creation Form -->
+<div class="card mt-3">
+  <div class="card-body">
+    <h4 class="card-title text-light">{% if template %}Edit{% else %}New{% endif %} Template Parameters</h4>
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      {{ error }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+    {% if template %}
+      <form hx-put="/update-template/{{ template._id }}" hx-target="#mainContent" novalidate>
+    {% else %}
+      <form hx-post="/create-template" hx-target="#mainContent" novalidate>
+    {% endif %}
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="title" class="form-label text-light">Title</label>
+          <input type="text" class="form-control bg-dark text-light" id="title" name="title" 
+                 value="{{ template.title if template else '' }}" required>
+        </div>
+        <div class="col-md-6">
+          <label for="product" class="form-label text-light">Product</label>
+          <input type="text" class="form-control bg-dark text-light" id="product" name="product"
+                 value="{{ template.product if template else '' }}" required>
+        </div>
+      </div>
+      
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="version" class="form-label text-light">Version</label>
+          <input type="text" class="form-control bg-dark text-light" id="version" name="version"
+                 value="{{ template.version if template else '' }}" required>
+        </div>
+        <div class="col-md-6">
+          <label for="status" class="form-label text-light">Status</label>
+          <select class="form-select bg-dark text-light" id="status" name="status" required>
+            <option value="draft" {% if template and template.status == 'draft' %}selected{% endif %}>Draft</option>
+            <option value="review" {% if template and template.status == 'review' %}selected{% endif %}>Review</option>
+            <option value="published" {% if template and template.status == 'published' %}selected{% endif %}>Published</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label for="introduction" class="form-label text-light">Introduction</label>
+        <textarea class="form-control bg-dark text-light" id="introduction" name="introduction" rows="3"
+                  required>{{ template.introduction if template else '' }}</textarea>
+      </div>
+
+      <div class="mb-3">
+        <label for="project_overview" class="form-label text-light">Project Overview</label>
+        <textarea class="form-control bg-dark text-light" id="project_overview" name="project_overview" rows="3"
+                  required>{{ template.project_overview if template else '' }}</textarea>
+      </div>
+
+      <div class="mb-3">
+        <label for="scope" class="form-label text-light">Scope</label>
+        <textarea class="form-control bg-dark text-light" id="scope" name="scope" rows="3"
+                  required>{{ template.scope if template else '' }}</textarea>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-secondary" hx-get="/templates" hx-target="#mainContent">Cancel</button>
+        <button type="submit" class="btn btn-primary">
+          {% if template %}Update{% else %}Create{% endif %} Template
+        </button>
+      </div>
+    </form>
+  </div>
+</div> 
