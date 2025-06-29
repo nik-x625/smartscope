@@ -27,4 +27,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "app_react_front.py"] 
+CMD ["sh", "-c", "python $FLASK_APP"] 
