@@ -911,6 +911,48 @@ def send_message():
 # JWT login route
 @app.route('/api/login', methods=['POST'])
 def api_login():
+    """
+    User login to obtain JWT tokens.
+    ---
+    tags:
+      - Authentication
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - username
+            - password
+          properties:
+            username:
+              type: string
+              example: alice
+            password:
+              type: string
+              example: secret
+    responses:
+      200:
+        description: JWT tokens returned
+        schema:
+          type: object
+          properties:
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+      401:
+        description: Invalid credentials
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: Bad username or password
+    """
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
