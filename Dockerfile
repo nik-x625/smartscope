@@ -27,4 +27,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "app_htmx.py"] 
+CMD ["python", "app_react_front.py"] 
