@@ -1,8 +1,8 @@
 services:
   web_react:
     build: .
-    image: smartscope_image_react
-    container_name: smartscope_react
+    image: smartscope_image_be_react
+    container_name: smartscope_be_react
     ports:
       - "9000:9000"
     volumes:
@@ -16,8 +16,8 @@ services:
 
   web_htmx:
     build: .
-    image: smartscope_image_htmx
-    container_name: smartscope_htmx
+    image: smartscope_image_be_htmx
+    container_name: smartscope_be_htmx
     ports:
       - "8000:8000"
     volumes:
