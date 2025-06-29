@@ -886,3 +886,4 @@ def send_message():
 if __name__ == '__main__':
     app.logger.info('Starting Flask application')
     app.run(host=Config.HOST, debug=Config.DEBUG, port=Config.PORT)
+
