@@ -394,6 +394,52 @@ def register():
     return render_template('register.html')
 
 
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    """
+    Register a new user
+    ---
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - username
+            - email
+            - password
+          properties:
+            username:
+              type: string
+              example: alice
+            email:
+              type: string
+              example: alice@example.com
+            password:
+              type: string
+              example: secret
+    responses:
+      201:
+        description: Registration successful    
+    """
+    data = request.get_json()
+    username = data.get('username')
+    email = data.get('email')
+    password = data.get('password')
+
+    user = User(username=username, email=email, password=password)
+
+    # Save to database
+    mongo.db.users.insert_one(user.to_dict())
+
+
+    # Log in the user
+    login_user(user)
+
+    return jsonify({'message': 'Registration successful'}), 201
+
+
 @app.route('/registration-success')
 @login_required
 def registration_success():
@@ -1025,3 +1071,4 @@ def get_users():
 if __name__ == '__main__':
     app.logger.info('Starting Flask application')
     app.run(host=Config.HOST, debug=Config.DEBUG, port=9000)
+

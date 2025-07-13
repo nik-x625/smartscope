@@ -8,7 +8,7 @@ services:
     volumes:
       - .:/app
     environment:
-      - FLASK_APP=app_react_front.py
+      - FLASK_APP=app_front_with_react.py
       - FLASK_ENV=development
       - MONGO_URI=mongodb://mongodb:27017/smartscope
     depends_on:
@@ -23,7 +23,7 @@ services:
     volumes:
       - .:/app
     environment:
-      - FLASK_APP=app_htmx.py
+      - FLASK_APP=app_front_with_htmx.py
       - FLASK_ENV=development
       - MONGO_URI=mongodb://mongodb:27017/smartscope
     depends_on:
