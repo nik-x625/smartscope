@@ -160,14 +160,3 @@ We welcome contributions! Here's how you can help:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
-
-### Getting Help
-- **Email**: nik.x625@gmail.com
-- **Issues**: If you find a bug or have a feature request, please [open an issue](https://github.com/nik-x625/smartscope/issues) <!-- Please verify this is the correct GitHub issues URL -->
-<!-- 
-### Professional Support
-
-For enterprise users or those needing dedicated support:
-
-- **Email**: nik.x625@gmail.com -->
