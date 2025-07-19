@@ -6,7 +6,7 @@ services:
     ports:
       - "9000:9000"
     volumes:
-      - .:/app
+      - .:/opt/
     environment:
       - FLASK_APP=app_front_with_react.py
       - FLASK_ENV=development
@@ -21,7 +21,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
+      - .:/opt/
     environment:
       - FLASK_APP=app_front_with_htmx_deprecated.py
       - FLASK_ENV=development

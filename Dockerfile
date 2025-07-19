@@ -23,7 +23,7 @@ RUN python -m pip install --upgrade pip
 
 
 
-WORKDIR /app
+WORKDIR /opt
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

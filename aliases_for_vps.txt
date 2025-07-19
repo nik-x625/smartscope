@@ -1,0 +1,21 @@
+### Docker cli aliases
+alias dps1='docker ps -a --format="table {{.ID}}\t{{.Image}}\t{{.Command}}\t{{.Status}}\t{{.Names}}"'
+alias tmux_start='tmux new-session -t res -d;tmux new-session -t log -d;tmux new-session -t mqtt -d;tmux new-session -t mongo -d;tmux new-session -t client -d;tmux new-session -t test -d;'
+alias dps2='docker ps -a --format '\''table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.RunningFor}}\t{{.Networks}}'\'
+alias dps3='docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | awk '\''NR>1{print $0 "\n"} NR==1{print $0}'\'''
+
+
+### K8s aliases
+alias kga='kubectl get all,secret,configmap,pvc,pv,ingress,serviceaccount'
+alias kgi='kubectl get all,ingress'
+
+
+# SmartScope aliases
+alias back="cd /opt/smartscope_back"
+alias front="cd /opt/smartscope_front"
+alias plt="docker exec -it $(docker ps  | grep 'smartscope_be_react' | awk '{print $1}') /bin/bash"
+alias tests_back="docker exec -it $(docker ps  | grep 'smartscope_be_react' | awk '{print $1}') pytest -v /opt/test_api.py"
+alias mongo="docker exec -it $(docker ps  | grep 'mongo' | awk '{print $1}') mongosh smartscope"
+alias logs='tail /opt/smartscope_back/logs/* -f'
+#alias mongo="docker exec -it $(docker ps  | grep 'qlines_mongo_container' | awk '{print $1}') mongosh -u root -p example --authenticationDatabase admin"
+
