@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CORS Login Test</title>
+</head>
+<body>
+  <h2>JWT Login Test</h2>
+  <div id="result" style="white-space: pre-wrap; font-family: monospace; color: #333;"></div>
+
+  <script>
+    const resultDiv = document.getElementById('result');
+
+    fetch('http://qlines.net:9000/api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Encoding': 'identity'
+      },
+      body: JSON.stringify({
+        username: 'm1',
+        password: 'm1'
+      }),
+    })
+    .then(async (response) => {
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      resultDiv.textContent = `Success!\nAccess Token: ${data.access_token || 'N/A'}\nRefresh Token: ${data.refresh_token || 'N/A'}`;
+    })
+    .catch(error => {
+      console.error('CORS or other error:', error);
+      resultDiv.textContent = `Request failed:\n${error}`;
+    });
+  </script>
+</body>
+</html>

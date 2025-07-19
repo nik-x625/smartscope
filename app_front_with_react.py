@@ -14,7 +14,7 @@ from models_for_documents.models import Section, Chapter, DocumentTemplate
 from models_for_flask_login.models import User
 from flask_login import LoginManager, login_required, current_user, login_user, logout_user
 import time
-
+from flask_cors import CORS
 from flasgger import Swagger
 
 
@@ -30,10 +30,10 @@ from flask_jwt_extended import (
 # if the name is not specified, the root logger will be used and it will propagate to all other loggers, like MongoDB logs
 logger = logging.getLogger('smartscope')
 
-
 def create_app(config_class=Config):
     # Create and configure the app
     app = Flask(__name__, static_folder='static')
+    CORS(app, resources={r"/*": {"origins": "*"}})
     app.config.from_object(config_class)
     # Add a secret key for JWT
     app.config['JWT_SECRET_KEY'] = 'your-secret-key'  # Change this!
