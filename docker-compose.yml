@@ -23,7 +23,7 @@ services:
     volumes:
       - .:/app
     environment:
-      - FLASK_APP=app_front_with_htmx.py
+      - FLASK_APP=app_front_with_htmx_deprecated.py
       - FLASK_ENV=development
       - MONGO_URI=mongodb://mongodb:27017/smartscope
     depends_on:

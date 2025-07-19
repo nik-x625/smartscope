@@ -8,6 +8,9 @@ RUN apt-get -y install tcpflow tcpdump python3 python3-pip python3-dev tzdata no
 #RUN apt-get -y install mosquitto mosquitto-clients
 #RUN apt-get -y install build-essential libssl-dev libffi-dev python3-setuptools python3-venv
 
+# Upgrade pip to latest version
+RUN python -m pip install --upgrade pip
+
 
 # RUN apt-get update && apt-get install -y --no-install-recommends \
 #     build-essential libpq-dev libssl-dev libffi-dev python3-dev && \

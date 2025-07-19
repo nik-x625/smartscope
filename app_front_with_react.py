@@ -150,22 +150,43 @@ def api_register():
     responses:
       201:
         description: Registration successful    
+      400:
+        description: Username or email already exists
     """
     data = request.get_json()
     username = data.get('username')
     email = data.get('email')
     password = data.get('password')
 
+    # Check if username or email already exists
+    if User.get_by_username(mongo, username):
+        return jsonify({'error': 'Username already exists'}), 400
+    if User.get_by_email(mongo, email):
+        return jsonify({'error': 'Email already exists'}), 400
+
     user = User(username=username, email=email, password=password)
-
-    # Save to database
     mongo.db.users.insert_one(user.to_dict())
-
-
-    # Log in the user
     login_user(user)
-
     return jsonify({'message': 'Registration successful'}), 201
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        # Check if username or email already exists
+        if User.get_by_username(mongo, username):
+            return render_template('register.html', error="Username already exists")
+        if User.get_by_email(mongo, email):
+            return render_template('register.html', error="Email already exists")
+        user = User(username=username, email=email, password=password)
+        mongo.db.users.insert_one(user.to_dict())
+        login_user(user)
+        return redirect(url_for('registration_success'))
+    return render_template('register.html')
 
 
 
@@ -440,6 +461,36 @@ def set_document():
         result = mongo.db.documents.insert_one(data)
         logger.info(f'in the set_document route, new document insert attempt, mongodb insert result: {result}')
         return jsonify({'status': 'success', 'document_id': str(result.inserted_id)}), 200
+
+
+@app.route('/api/delete_user', methods=['DELETE'])
+@jwt_required()
+def api_delete_user():
+    """
+    Delete the authenticated user and all their data.
+    ---
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: User deleted successfully
+      401:
+        description: Unauthorized
+      500:
+        description: Error deleting user
+    """
+    user_id = get_jwt_identity()
+    try:
+        # Delete user's documents
+        mongo.db.documents.delete_many({'user_id': user_id})
+        # Delete user's templates
+        mongo.db.templates.delete_many({'user_id': user_id})
+        # Delete user (fix: convert user_id to ObjectId)
+        mongo.db.users.delete_one({'_id': ObjectId(user_id)})
+        return jsonify({'message': 'User deleted successfully'}), 200
+    except Exception as e:
+        logger.error(f'Error deleting user {user_id}: {str(e)}', exc_info=True)
+        return jsonify({'error': f'Error deleting user: {str(e)}'}), 500
 
 
 if __name__ == '__main__':
