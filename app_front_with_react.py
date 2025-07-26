@@ -24,6 +24,7 @@ from flask_jwt_extended import (
     JWTManager, create_access_token, create_refresh_token,
     jwt_required, get_jwt_identity
 )
+from flask_jwt_extended.exceptions import JWTExtendedException, NoAuthorizationError, JWTDecodeError
 
 
 # Create a logger
@@ -78,6 +79,22 @@ def create_app(config_class=Config):
 
     jwt = JWTManager(app)
 
+    # Custom JWT error handlers to ensure all JWT errors return 401
+    @jwt.invalid_token_loader
+    def custom_invalid_token_loader(reason):
+        logger.warning(f'Invalid token: {reason}')
+        return jsonify({'msg': 'Invalid or expired token', 'error': reason}), 401
+
+    @jwt.unauthorized_loader
+    def custom_unauthorized_loader(reason):
+        logger.warning(f'Unauthorized: {reason}')
+        return jsonify({'msg': 'Missing or invalid authorization', 'error': reason}), 401
+
+    @jwt.expired_token_loader
+    def custom_expired_token_loader(jwt_header, jwt_payload):
+        logger.warning('Expired token')
+        return jsonify({'msg': 'Token has expired'}), 401
+
     return app
 
 
@@ -117,6 +134,20 @@ db_service = DatabaseService(mongo)
 @app.route('/')
 @login_required
 def index():
+    """
+    Root page (dashboard)
+    ---
+    tags:
+      - UI
+    summary: Render the main dashboard page (HTML)
+    responses:
+      200:
+        description: Dashboard HTML page
+        examples:
+          text/html: "<html>...dashboard...</html>"
+      302:
+        description: Redirect to login if not authenticated
+    """
     logger.info('Accessing root page, redirecting to dashboard')
     return render_template('index.html')
 
@@ -158,6 +189,10 @@ def api_register():
     email = data.get('email')
     password = data.get('password')
 
+    # Check for missing fields
+    if not username or not email or not password:
+        return jsonify({'error': 'Missing required fields'}), 400
+
     # Check if username or email already exists
     if User.get_by_username(mongo, username):
         return jsonify({'error': 'Username already exists'}), 400
@@ -169,6 +204,8 @@ def api_register():
     login_user(user)
     return jsonify({'message': 'Registration successful'}), 201
 
+
+'''
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -187,6 +224,7 @@ def register():
         login_user(user)
         return redirect(url_for('registration_success'))
     return render_template('register.html')
+'''
 
 
 
@@ -205,7 +243,7 @@ def ensure_ids(items):
 
 
 
-
+'''
 @app.route('/save_document', methods=['POST'])
 @login_required
 def save_document():
@@ -245,8 +283,7 @@ def save_document():
     except Exception as e:
         logger.error(f"Error saving document: {str(e)}", exc_info=True)
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
+'''
 
 
 
@@ -356,10 +393,172 @@ def get_documents():
         doc['_id'] = str(doc['_id'])
         if 'user_id' in doc:
             doc['user_id'] = str(doc['user_id'])
+        if 'created_at' in doc:
+            doc['created_at'] = str(doc['created_at'])
+        if 'updated_at' in doc:
+            doc['updated_at'] = str(doc['updated_at'])
 
     logger.info(f'user_documents: {user_documents}')
     
     return jsonify(user_documents), 200
+
+
+@app.route('/api/get_document', methods=['GET'])
+@jwt_required()
+def get_document():
+    """
+    Get a specific document for the authenticated user by document ID
+    ---
+    tags:
+      - Documents
+    security:
+      - Bearer: []
+    parameters:
+      - in: query
+        name: document_id
+        required: true
+        type: string
+        description: The ID of the document to retrieve
+    responses:
+      200:
+        description: Returns the document for the authenticated user
+        schema:
+          type: object
+          properties:
+            _id:
+              type: string
+              example: "60c72b2f9b1e8b001c8e4b8a"
+            title:
+              type: string
+              example: "Research Report 2024"
+            content:
+              type: object
+              properties:
+                sections:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: "sec-1"
+                      title:
+                        type: string
+                        example: "Introduction"
+                      content:
+                        type: string
+                        example: "This section introduces the research topic."
+                      children:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              example: "sec-1-1"
+                            title:
+                              type: string
+                              example: "Background"
+                            content:
+                              type: string
+                              example: "Background information goes here."
+            user_id:
+              type: string
+              example: "60c72b2f9b1e8b001c8e4b8b"
+            doc_status:
+              type: string
+              example: "saved"
+            created_at:
+              type: string
+              format: date-time
+              example: "2024-05-01T12:00:00Z"
+            updated_at:
+              type: string
+              format: date-time
+              example: "2024-05-02T15:30:00Z"
+            tags:
+              type: array
+              items:
+                type: string
+              example: ["research", "2024", "AI"]
+        examples:
+          application/json: {
+            "_id": "60c72b2f9b1e8b001c8e4b8a",
+            "title": "Research Report 2024",
+            "content": {
+              "sections": [
+                {
+                  "id": "sec-1",
+                  "title": "Introduction",
+                  "content": "This section introduces the research topic.",
+                  "children": [
+                    {
+                      "id": "sec-1-1",
+                      "title": "Background",
+                      "content": "Background information goes here."
+                    }
+                  ]
+                },
+                {
+                  "id": "sec-2",
+                  "title": "Methods",
+                  "content": "Description of research methods.",
+                  "children": []
+                }
+              ]
+            },
+            "user_id": "60c72b2f9b1e8b001c8e4b8b",
+            "doc_status": "saved",
+            "created_at": "2024-05-01T12:00:00Z",
+            "updated_at": "2024-05-02T15:30:00Z",
+            "tags": ["research", "2024", "AI"]
+          }
+      400:
+        description: Bad request - missing document_id parameter
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "error"
+            message:
+              type: string
+              example: "No document_id provided"
+      401:
+        description: Unauthorized, missing or invalid JWT
+      404:
+        description: Document not found
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "error"
+            message:
+              type: string
+              example: "Document not found"
+    """
+    from bson import ObjectId
+    user_id = get_jwt_identity()
+    document_id = request.args.get('document_id')
+    if not document_id:
+        return jsonify({'status': 'error', 'message': 'No document_id provided'}), 400
+    try:
+        doc = mongo.db.documents.find_one({'_id': ObjectId(document_id), 'user_id': user_id})
+        if not doc:
+            return jsonify({'status': 'error', 'message': 'Document not found'}), 404
+        # Convert ObjectId to string for JSON serialization
+        doc['_id'] = str(doc['_id'])
+        if 'user_id' in doc:
+            doc['user_id'] = str(doc['user_id'])
+        if 'created_at' in doc:
+            doc['created_at'] = str(doc['created_at'])
+        if 'updated_at' in doc:
+            doc['updated_at'] = str(doc['updated_at'])
+        return jsonify(doc), 200
+    except Exception as e:
+        logger.error(f"Error fetching document {document_id} for user {user_id}: {str(e)}", exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/api/refresh', methods=['POST'])
@@ -368,15 +567,30 @@ def refresh():
     """
     Refresh endpoint to obtain a new access token using a valid refresh token.
     ---
+    tags:
+      - Authentication
     security:
       - Bearer: []
+    summary: Obtain a new access token using a valid refresh token
     responses:
       200:
         description: Returns a new access token
+        schema:
+          type: object
+          properties:
+            access_token:
+              type: string
+              example: "new_token"
         examples:
           application/json: {"access_token": "new_token"}
       401:
         description: Unauthorized, missing or invalid refresh token
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: "Invalid or expired token"
     """
     identity = get_jwt_identity()
     access_token = create_access_token(identity=identity)
@@ -416,6 +630,77 @@ def set_document():
         schema:
           type: object
           description: The document JSON to store
+          properties:
+            title:
+              type: string
+              example: "Research Report 2024"
+            content:
+              type: object
+              properties:
+                sections:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: "sec-1"
+                      title:
+                        type: string
+                        example: "Introduction"
+                      content:
+                        type: string
+                        example: "This section introduces the research topic."
+                      children:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              example: "sec-1-1"
+                            title:
+                              type: string
+                              example: "Background"
+                            content:
+                              type: string
+                              example: "Background information goes here."
+            doc_status:
+              type: string
+              example: "saved"
+            tags:
+              type: array
+              items:
+                type: string
+              example: ["research", "2024", "AI"]
+        examples:
+          application/json: {
+            "title": "Research Report 2024",
+            "content": {
+              "sections": [
+                {
+                  "id": "sec-1",
+                  "title": "Introduction",
+                  "content": "This section introduces the research topic.",
+                  "children": [
+                    {
+                      "id": "sec-1-1",
+                      "title": "Background",
+                      "content": "Background information goes here."
+                    }
+                  ]
+                },
+                {
+                  "id": "sec-2",
+                  "title": "Methods",
+                  "content": "Description of research methods.",
+                  "children": []
+                }
+              ]
+            },
+            "doc_status": "saved",
+            "tags": ["research", "2024", "AI"]
+          }
     responses:
       200:
         description: Document saved successfully
@@ -447,17 +732,26 @@ def set_document():
     # Attach user_id to the document
     data['user_id'] = user_id
 
-    # If _id is provided, update; else, insert new
     from bson import ObjectId
+    from datetime import datetime
     doc_id = data.get('_id')
+    now = datetime.utcnow()
     if doc_id:
         # Update existing document
+        existing_doc = mongo.db.documents.find_one({'_id': ObjectId(doc_id), 'user_id': user_id})
+        if not existing_doc:
+            return jsonify({'status': 'error', 'message': 'Document not found'}), 404
         data['_id'] = ObjectId(doc_id)
+        # Preserve created_at, update updated_at
+        data['created_at'] = existing_doc.get('created_at', now)
+        data['updated_at'] = now
         result = mongo.db.documents.replace_one({'_id': ObjectId(doc_id), 'user_id': user_id}, data, upsert=True)
         logger.info(f'in the set_document route, mongodb update result: {result}')
         return jsonify({'status': 'success', 'document_id': str(doc_id)}), 200
     else:
         # Insert new document
+        data['created_at'] = now
+        data['updated_at'] = now
         result = mongo.db.documents.insert_one(data)
         logger.info(f'in the set_document route, new document insert attempt, mongodb insert result: {result}')
         return jsonify({'status': 'success', 'document_id': str(result.inserted_id)}), 200
@@ -469,15 +763,38 @@ def api_delete_user():
     """
     Delete the authenticated user and all their data.
     ---
+    tags:
+      - User
     security:
       - Bearer: []
+    summary: Delete the authenticated user and all their documents/templates
     responses:
       200:
         description: User deleted successfully
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "User deleted successfully"
+        examples:
+          application/json: {"message": "User deleted successfully"}
       401:
         description: Unauthorized
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: "Invalid or expired token"
       500:
         description: Error deleting user
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Error deleting user: ..."
     """
     user_id = get_jwt_identity()
     try:
@@ -491,6 +808,40 @@ def api_delete_user():
     except Exception as e:
         logger.error(f'Error deleting user {user_id}: {str(e)}', exc_info=True)
         return jsonify({'error': f'Error deleting user: {str(e)}'}), 500
+
+
+@app.errorhandler(JWTExtendedException)
+def handle_jwt_errors(e):
+    logger.warning(f'JWT error: {str(e)}')
+    return jsonify({'msg': 'Invalid or expired token', 'error': str(e)}), 401
+
+@app.errorhandler(NoAuthorizationError)
+def handle_no_auth_error(e):
+    logger.warning(f'NoAuthorizationError: {str(e)}')
+    return jsonify({'msg': 'Missing or invalid authorization', 'error': str(e)}), 401
+
+@app.errorhandler(JWTDecodeError)
+def handle_jwt_decode_error(e):
+    logger.warning(f'JWTDecodeError: {str(e)}')
+    return jsonify({'msg': 'Malformed JWT', 'error': str(e)}), 401
+
+@app.errorhandler(422)
+def handle_unprocessable_entity(e):
+    # This is for malformed JWTs and similar issues
+    logger.warning(f'422 error: {str(e)}')
+    # Try to extract the error message from the Werkzeug HTTPException
+    try:
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException) and hasattr(e, 'data'):
+            data = e.data
+            if isinstance(data, dict) and 'msg' in data:
+                # If the error message is about JWT, return 401
+                if 'jwt' in data['msg'].lower() or 'token' in data['msg'].lower():
+                    return jsonify({'msg': data['msg'], 'error': str(e)}), 401
+    except Exception as ex:
+        logger.warning(f'Error inspecting 422 exception: {ex}')
+    # Fallback: always return 401 for 422
+    return jsonify({'msg': 'Invalid or malformed request', 'error': str(e)}), 401
 
 
 if __name__ == '__main__':
