@@ -4,6 +4,11 @@ import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
 from bson import ObjectId
+import re
+from flask_bcrypt import Bcrypt
+from itsdangerous import URLSafeTimedSerializer
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # Import configuration and database
 from config import Config
@@ -25,6 +30,8 @@ from flask_jwt_extended import (
     jwt_required, get_jwt_identity
 )
 from flask_jwt_extended.exceptions import JWTExtendedException, NoAuthorizationError, JWTDecodeError
+
+from flask import Blueprint
 
 
 # Create a logger
@@ -95,18 +102,604 @@ def create_app(config_class=Config):
         logger.warning('Expired token')
         return jsonify({'msg': 'Token has expired'}), 401
 
-    return app
+    # Create and register blueprints
+    auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+    user_bp = Blueprint('user', __name__, url_prefix='/api/user')
+    
+    # Initialize rate limiter first
+    limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
+    
+    # Define auth routes
+    @auth_bp.route('/register', methods=['POST'])
+    def auth_register():
+        """
+        Register a new user (with email verification)
+        ---
+        tags:
+          - Auth
+        parameters:
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - name
+              properties:
+                email:
+                  type: string
+                  example: user@example.com
+                password:
+                  type: string
+                  example: StrongPassword123!
+                name:
+                  type: string
+                  example: John Doe
+        responses:
+          201:
+            description: Registration successful, verification email sent
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Registration successful. Please check your email to verify your account."
+          400:
+            description: Invalid input or user already exists
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Email already exists"
+        """
+        data = request.get_json()
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        name = data.get('name', '').strip()
 
+        # Validate email format
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+            return jsonify({'error': 'Invalid email format'}), 400
+        # Validate password strength
+        if len(password) < 8 or not re.search(r"[A-Z]", password) or not re.search(r"[a-z]", password) or not re.search(r"[0-9]", password):
+            return jsonify({'error': 'Password must be at least 8 characters and include upper, lower, and number'}), 400
+        # Validate name
+        if not name:
+            return jsonify({'error': 'Name is required'}), 400
+        # Check if user exists
+        if User.get_by_email(mongo, email):
+            return jsonify({'error': 'Email already exists'}), 400
 
-# Create the app instance
-app = create_app()
+        # Hash password
+        password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+        # Create verification token
+        verification_token = serializer.dumps(email, salt='email-verify')
+        # Create user
+        user = User(
+            username=email,  # Use email as username for now
+            email=email,
+            password=None,  # We'll set hash directly
+            name=name,
+            is_verified=False,
+            verification_token=verification_token,
+            verification_sent_at=datetime.utcnow()
+        )
+        user.password_hash = password_hash
+        mongo.db.users.insert_one(user.to_dict())
+
+        # Send verification email (mock)
+        verification_url = f"https://your-frontend-app/verify-email?token={verification_token}"
+        logger.info(f"Send verification email to {email}: {verification_url}")
+        # TODO: Integrate Flask-Mail or other email backend
+
+        return jsonify({'message': 'Registration successful. Please check your email to verify your account.'}), 201
+
+    @auth_bp.route('/login', methods=['POST'])
+    @limiter.limit("5 per minute")
+    def auth_login():
+        """
+        User login to obtain JWT tokens.
+        ---
+        tags:
+          - Auth
+        parameters:
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  example: user@example.com
+                password:
+                  type: string
+                  example: StrongPassword123!
+        responses:
+          200:
+            description: JWT tokens returned
+            schema:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                refresh_token:
+                  type: string
+          401:
+            description: Invalid credentials or unverified email
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Invalid credentials or email not verified"
+        """
+        data = request.get_json()
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        user = User.get_by_email(mongo, email)
+        if not user or not bcrypt.check_password_hash(user.password_hash, password):
+            return jsonify({'error': 'Invalid credentials'}), 401
+        if not user.is_verified:
+            return jsonify({'error': 'Email not verified'}), 401
+        access_token = create_access_token(identity=str(user._id))
+        refresh_token = create_refresh_token(identity=str(user._id))
+        return jsonify(access_token=access_token, refresh_token=refresh_token), 200
+
+    @auth_bp.route('/forgot-password', methods=['POST'])
+    def forgot_password():
+        """
+        Request a password reset email.
+        ---
+        tags:
+          - Auth
+        parameters:
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  example: user@example.com
+        responses:
+          200:
+            description: If email exists, a reset link is sent (generic message)
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "If the email exists, a password reset link has been sent."
+        """
+        data = request.get_json()
+        email = data.get('email', '').strip().lower()
+        user = User.get_by_email(mongo, email)
+        if user:
+            reset_token = serializer.dumps(email, salt='reset-password')
+            mongo.db.users.update_one({'_id': user._id}, {'$set': {'reset_token': reset_token, 'reset_sent_at': datetime.utcnow()}})
+            reset_url = f"https://your-frontend-app/reset-password?token={reset_token}"
+            logger.info(f"Send password reset email to {email}: {reset_url}")
+            # TODO: Integrate Flask-Mail or other email backend
+        return jsonify({'message': 'If the email exists, a password reset link has been sent.'}), 200
+
+    @auth_bp.route('/reset-password', methods=['POST'])
+    def reset_password():
+        """
+        Reset password using a valid reset token.
+        ---
+        tags:
+          - Auth
+        parameters:
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+              required:
+                - token
+                - newPassword
+              properties:
+                token:
+                  type: string
+                  example: "reset-token-string"
+                newPassword:
+                  type: string
+                  example: "NewStrongPassword123!"
+        responses:
+          200:
+            description: Password reset successful
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Password has been reset successfully."
+          400:
+            description: Invalid or expired token, or weak password
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Invalid or expired token"
+        """
+        data = request.get_json()
+        token = data.get('token', '')
+        new_password = data.get('newPassword', '')
+        # Validate password strength
+        if len(new_password) < 8 or not re.search(r"[A-Z]", new_password) or not re.search(r"[a-z]", new_password) or not re.search(r"[0-9]", new_password):
+            return jsonify({'error': 'Password must be at least 8 characters and include upper, lower, and number'}), 400
+        try:
+            email = serializer.loads(token, salt='reset-password', max_age=3600)
+        except Exception as e:
+            return jsonify({'error': 'Invalid or expired token'}), 400
+        user = User.get_by_email(mongo, email)
+        if not user or user.reset_token != token:
+            return jsonify({'error': 'Invalid or expired token'}), 400
+        # Update password
+        password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+        mongo.db.users.update_one({'_id': user._id}, {'$set': {'password_hash': password_hash}, '$unset': {'reset_token': '', 'reset_sent_at': ''}})
+        logger.info(f'Password reset for user {email}')
+        return jsonify({'message': 'Password has been reset successfully.'}), 200
+
+    @auth_bp.route('/verify-email', methods=['GET'])
+    def verify_email():
+        """
+        Verify email address using a verification token.
+        ---
+        tags:
+          - Auth
+        parameters:
+          - in: query
+            name: token
+            required: true
+            type: string
+            description: Email verification token
+        responses:
+          200:
+            description: Email verified successfully
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Email verified successfully."
+          400:
+            description: Invalid or expired token
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Invalid or expired token"
+        """
+        token = request.args.get('token', '')
+        try:
+            email = serializer.loads(token, salt='email-verify', max_age=86400)
+        except Exception as e:
+            return jsonify({'error': 'Invalid or expired token'}), 400
+        user = User.get_by_email(mongo, email)
+        if not user or user.verification_token != token:
+            return jsonify({'error': 'Invalid or expired token'}), 400
+        if user.is_verified:
+            return jsonify({'message': 'Email already verified.'}), 200
+        # Mark user as verified
+        mongo.db.users.update_one({'_id': user._id}, {'$set': {'is_verified': True}, '$unset': {'verification_token': '', 'verification_sent_at': ''}})
+        logger.info(f'Email verified for user {email}')
+        return jsonify({'message': 'Email verified successfully.'}), 200
+
+    @auth_bp.route('/resend-verification', methods=['POST'])
+    def resend_verification():
+        """
+        Resend email verification link.
+        ---
+        tags:
+          - Auth
+        parameters:
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  example: user@example.com
+        responses:
+          200:
+            description: If email exists and not verified, a verification link is sent (generic message)
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "If the email exists and is not verified, a verification link has been sent."
+        """
+        data = request.get_json()
+        email = data.get('email', '').strip().lower()
+        user = User.get_by_email(mongo, email)
+        if user and not user.is_verified:
+            verification_token = serializer.dumps(email, salt='email-verify')
+            mongo.db.users.update_one({'_id': user._id}, {'$set': {'verification_token': verification_token, 'verification_sent_at': datetime.utcnow()}})
+            verification_url = f"https://your-frontend-app/verify-email?token={verification_token}"
+            logger.info(f"Resend verification email to {email}: {verification_url}")
+            # TODO: Integrate Flask-Mail or other email backend
+        return jsonify({'message': 'If the email exists and is not verified, a verification link has been sent.'}), 200
+
+    @auth_bp.route('/refresh-token', methods=['POST'])
+    @jwt_required(refresh=True)
+    def refresh_token():
+        """
+        Refresh access token using a valid refresh token.
+        ---
+        tags:
+          - Auth
+        security:
+          - Bearer: []
+        responses:
+          200:
+            description: Returns a new access token
+            schema:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                  example: "new_access_token"
+              examples:
+                application/json: {"access_token": "new_access_token"}
+          401:
+            description: Unauthorized, missing or invalid refresh token
+            schema:
+              type: object
+              properties:
+                msg:
+                  type: string
+                  example: "Invalid or expired token"
+        """
+        identity = get_jwt_identity()
+        access_token = create_access_token(identity=identity)
+        return jsonify(access_token=access_token), 200
+
+    @auth_bp.route('/logout', methods=['POST'])
+    @jwt_required()
+    def logout():
+        """
+        Logout user (invalidate token).
+        ---
+        tags:
+          - Auth
+        security:
+          - Bearer: []
+        responses:
+          200:
+            description: Logout successful
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Logout successful"
+          401:
+            description: Unauthorized, missing or invalid token
+        """
+        # TODO: Implement token blacklisting if needed
+        # For now, just return success (client should discard tokens)
+        logger.info(f'User logout: {get_jwt_identity()}')
+        return jsonify({'message': 'Logout successful'}), 200
+
+    # Define user routes
+    @user_bp.route('/me', methods=['GET'])
+    @jwt_required()
+    def get_user_profile():
+        """
+        Get current user's profile.
+        ---
+        tags:
+          - User
+        security:
+          - Bearer: []
+        responses:
+          200:
+            description: Returns the current user's profile
+            schema:
+              type: object
+              properties:
+                _id:
+                  type: string
+                  example: "60c72b2f9b1e8b001c8e4b8a"
+                username:
+                  type: string
+                  example: "user@example.com"
+                email:
+                  type: string
+                  example: "user@example.com"
+                name:
+                  type: string
+                  example: "John Doe"
+                avatar_url:
+                  type: string
+                  example: "https://example.com/avatar.jpg"
+                is_verified:
+                  type: boolean
+                  example: true
+                created_at:
+                  type: string
+                  format: date-time
+                  example: "2024-05-01T12:00:00Z"
+          401:
+            description: Unauthorized, missing or invalid JWT
+        """
+        user_id = get_jwt_identity()
+        user = User.get_by_id(mongo, user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        profile = user.to_dict()
+        # Remove sensitive fields
+        profile.pop('password_hash', None)
+        profile.pop('verification_token', None)
+        profile.pop('verification_sent_at', None)
+        profile.pop('reset_token', None)
+        profile.pop('reset_sent_at', None)
+        return jsonify(profile), 200
+
+    @user_bp.route('/me', methods=['PUT'])
+    @jwt_required()
+    def update_user_profile():
+        """
+        Update current user's profile.
+        ---
+        tags:
+          - User
+        security:
+          - Bearer: []
+        parameters:
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "John Doe"
+                avatar_url:
+                  type: string
+                  example: "https://example.com/avatar.jpg"
+        responses:
+          200:
+            description: Profile updated successfully
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Profile updated successfully"
+          400:
+            description: Invalid input
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Invalid input"
+          401:
+            description: Unauthorized, missing or invalid JWT
+        """
+        user_id = get_jwt_identity()
+        user = User.get_by_id(mongo, user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        data = request.get_json()
+        name = data.get('name', '').strip() if data.get('name') else None
+        avatar_url = data.get('avatar_url', '').strip() if data.get('avatar_url') else None
+        # Validate name
+        if name is not None and not name:
+            return jsonify({'error': 'Name cannot be empty'}), 400
+        # Update profile
+        update_data = {}
+        if name is not None:
+            update_data['name'] = name
+        if avatar_url is not None:
+            update_data['avatar_url'] = avatar_url
+        if update_data:
+            mongo.db.users.update_one({'_id': user._id}, {'$set': update_data})
+            logger.info(f'Profile updated for user {user.email}')
+        return jsonify({'message': 'Profile updated successfully'}), 200
+
+    @user_bp.route('/change-password', methods=['POST'])
+    @jwt_required()
+    def change_password():
+        """
+        Change user's password.
+        ---
+        tags:
+          - User
+        security:
+          - Bearer: []
+        parameters:
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+              required:
+                - current_password
+                - new_password
+              properties:
+                current_password:
+                  type: string
+                  example: "OldPassword123!"
+                new_password:
+                  type: string
+                  example: "NewStrongPassword123!"
+        responses:
+          200:
+            description: Password changed successfully
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Password changed successfully"
+          400:
+            description: Invalid current password or weak new password
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Invalid current password"
+          401:
+            description: Unauthorized, missing or invalid JWT
+        """
+        user_id = get_jwt_identity()
+        user = User.get_by_id(mongo, user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        data = request.get_json()
+        current_password = data.get('current_password', '')
+        new_password = data.get('new_password', '')
+        # Verify current password
+        if not bcrypt.check_password_hash(user.password_hash, current_password):
+            return jsonify({'error': 'Invalid current password'}), 400
+        # Validate new password strength
+        if len(new_password) < 8 or not re.search(r"[A-Z]", new_password) or not re.search(r"[a-z]", new_password) or not re.search(r"[0-9]", new_password):
+            return jsonify({'error': 'Password must be at least 8 characters and include upper, lower, and number'}), 400
+        # Update password
+        password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+        mongo.db.users.update_one({'_id': user._id}, {'$set': {'password_hash': password_hash}})
+        logger.info(f'Password changed for user {user.email}')
+        return jsonify({'message': 'Password changed successfully'}), 200
+    
+    # Register blueprints
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(user_bp)
+
+    # limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
+
+    return app, auth_bp, user_bp, limiter
+
+# Create the app instance and blueprints
+app, auth_bp, user_bp, limiter = create_app()
 
 # Add Swagger securityDefinitions for Bearer token
 swagger_template = {
     "swagger": "2.0",
     "info": {
         "title": "SmartScope API",
-        "description": "API documentation for SmartScope",
+        "description": "API documentation for SmartScope backend",
         "version": "1.0.0"
     },
     "securityDefinitions": {
@@ -125,6 +718,9 @@ swagger_template = {
 swagger = Swagger(app, template=swagger_template)
 
 db_service = DatabaseService(mongo)
+
+bcrypt = Bcrypt(app)
+serializer = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
 
 # Add custom template filters
 
@@ -843,6 +1439,12 @@ def handle_unprocessable_entity(e):
     # Fallback: always return 401 for 422
     return jsonify({'msg': 'Invalid or malformed request', 'error': str(e)}), 401
 
+
+# Register blueprints
+# app.register_blueprint(auth_bp)
+# app.register_blueprint(user_bp)
+
+# limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
 
 if __name__ == '__main__':
     app.logger.info('Starting Flask application')
