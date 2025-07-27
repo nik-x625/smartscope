@@ -113,14 +113,28 @@ def create_app(config_class=Config):
     @auth_bp.route('/register', methods=['POST'])
     def auth_register():
         """
-        Register a new user (with email verification)
+        Register a new user account with email verification.
+        
+        Creates a new user account and sends a verification email. The user must verify their email
+        before they can log in. Password must meet security requirements.
         ---
         tags:
-          - Auth
+          - Authentication
+        summary: Register a new user account
+        description: |
+          Register a new user account with email verification. The account will be created but marked
+          as unverified until the user clicks the verification link sent to their email address.
+          
+          **Password Requirements:**
+          - Minimum 8 characters
+          - Must contain uppercase letter
+          - Must contain lowercase letter  
+          - Must contain number
         parameters:
           - in: body
             name: body
             required: true
+            description: User registration data
             schema:
               type: object
               required:
@@ -130,29 +144,37 @@ def create_app(config_class=Config):
               properties:
                 email:
                   type: string
-                  example: user@example.com
+                  format: email
+                  description: User's email address (will be used as username)
+                  example: "john.doe@example.com"
                 password:
                   type: string
-                  example: StrongPassword123!
+                  minLength: 8
+                  description: User's password (must meet security requirements)
+                  example: "StrongPassword123!"
                 name:
                   type: string
-                  example: John Doe
+                  minLength: 1
+                  description: User's full name
+                  example: "John Doe"
         responses:
           201:
-            description: Registration successful, verification email sent
+            description: User account created successfully
             schema:
               type: object
               properties:
                 message:
                   type: string
+                  description: Success message with verification instructions
                   example: "Registration successful. Please check your email to verify your account."
           400:
-            description: Invalid input or user already exists
+            description: Invalid input data or user already exists
             schema:
               type: object
               properties:
                 error:
                   type: string
+                  description: Specific error message
                   example: "Email already exists"
         """
         data = request.get_json()
@@ -201,14 +223,27 @@ def create_app(config_class=Config):
     @limiter.limit("5 per minute")
     def auth_login():
         """
-        User login to obtain JWT tokens.
+        Authenticate user and obtain JWT tokens.
+        
+        Validates user credentials and returns JWT access and refresh tokens for API authentication.
+        Only verified users can log in. Rate limited to 5 attempts per minute.
         ---
         tags:
-          - Auth
+          - Authentication
+        summary: User login with JWT token generation
+        description: |
+          Authenticate a user with their email and password. Returns JWT tokens for API access.
+          
+          **Requirements:**
+          - User account must exist
+          - Email must be verified
+          - Password must be correct
+          - Rate limited to prevent brute force attacks
         parameters:
           - in: body
             name: body
             required: true
+            description: User login credentials
             schema:
               type: object
               required:
@@ -217,28 +252,45 @@ def create_app(config_class=Config):
               properties:
                 email:
                   type: string
-                  example: user@example.com
+                  format: email
+                  description: User's email address
+                  example: "john.doe@example.com"
                 password:
                   type: string
-                  example: StrongPassword123!
+                  description: User's password
+                  example: "StrongPassword123!"
         responses:
           200:
-            description: JWT tokens returned
+            description: Authentication successful
             schema:
               type: object
               properties:
                 access_token:
                   type: string
+                  description: JWT access token for API authentication
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 refresh_token:
                   type: string
+                  description: JWT refresh token for obtaining new access tokens
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
           401:
-            description: Invalid credentials or unverified email
+            description: Authentication failed
             schema:
               type: object
               properties:
                 error:
                   type: string
+                  description: Specific authentication error
                   example: "Invalid credentials or email not verified"
+          429:
+            description: Too many login attempts
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  description: Rate limit exceeded message
+                  example: "Too many login attempts. Please try again later."
         """
         data = request.get_json()
         email = data.get('email', '').strip().lower()
@@ -256,13 +308,23 @@ def create_app(config_class=Config):
     def forgot_password():
         """
         Request a password reset email.
+        
+        Sends a password reset link to the user's email address if the account exists.
+        For security reasons, the response is always the same regardless of whether the email exists.
         ---
         tags:
-          - Auth
+          - Authentication
+        summary: Request password reset email
+        description: |
+          Initiates the password reset process by sending a reset link to the user's email.
+          
+          **Security Note:** The response is intentionally generic to prevent email enumeration attacks.
+          The same message is returned whether the email exists or not.
         parameters:
           - in: body
             name: body
             required: true
+            description: Password reset request data
             schema:
               type: object
               required:
@@ -270,15 +332,18 @@ def create_app(config_class=Config):
               properties:
                 email:
                   type: string
-                  example: user@example.com
+                  format: email
+                  description: Email address to send reset link to
+                  example: "john.doe@example.com"
         responses:
           200:
-            description: If email exists, a reset link is sent (generic message)
+            description: Password reset email sent (if account exists)
             schema:
               type: object
               properties:
                 message:
                   type: string
+                  description: Generic success message for security
                   example: "If the email exists, a password reset link has been sent."
         """
         data = request.get_json()
@@ -295,14 +360,32 @@ def create_app(config_class=Config):
     @auth_bp.route('/reset-password', methods=['POST'])
     def reset_password():
         """
-        Reset password using a valid reset token.
+        Reset user password using a valid reset token.
+        
+        Allows users to set a new password using a token received via email.
+        The token expires after 1 hour for security.
         ---
         tags:
-          - Auth
+          - Authentication
+        summary: Reset password with token
+        description: |
+          Resets the user's password using a valid reset token received via email.
+          
+          **Password Requirements:**
+          - Minimum 8 characters
+          - Must contain uppercase letter
+          - Must contain lowercase letter
+          - Must contain number
+          
+          **Token Security:**
+          - Tokens expire after 1 hour
+          - Tokens are single-use
+          - Invalid tokens return generic error for security
         parameters:
           - in: body
             name: body
             required: true
+            description: Password reset data
             schema:
               type: object
               required:
@@ -311,9 +394,12 @@ def create_app(config_class=Config):
               properties:
                 token:
                   type: string
-                  example: "reset-token-string"
+                  description: Password reset token from email
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 newPassword:
                   type: string
+                  minLength: 8
+                  description: New password (must meet security requirements)
                   example: "NewStrongPassword123!"
         responses:
           200:
@@ -323,14 +409,16 @@ def create_app(config_class=Config):
               properties:
                 message:
                   type: string
+                  description: Success confirmation message
                   example: "Password has been reset successfully."
           400:
-            description: Invalid or expired token, or weak password
+            description: Invalid token or weak password
             schema:
               type: object
               properties:
                 error:
                   type: string
+                  description: Specific error message
                   example: "Invalid or expired token"
         """
         data = request.get_json()
@@ -355,32 +443,52 @@ def create_app(config_class=Config):
     @auth_bp.route('/verify-email', methods=['GET'])
     def verify_email():
         """
-        Verify email address using a verification token.
+        Verify user's email address using a verification token.
+        
+        Completes the email verification process started during registration.
+        Users must verify their email before they can log in.
         ---
         tags:
-          - Auth
+          - Authentication
+        summary: Verify email address
+        description: |
+          Verifies the user's email address using a token sent during registration.
+          
+          **Process:**
+          1. User clicks verification link from email
+          2. Token is validated
+          3. Account is marked as verified
+          4. User can now log in
+          
+          **Token Security:**
+          - Tokens expire after 24 hours
+          - Tokens are single-use
+          - Invalid tokens return generic error for security
         parameters:
           - in: query
             name: token
             required: true
             type: string
-            description: Email verification token
+            description: Email verification token from registration email
+            example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         responses:
           200:
-            description: Email verified successfully
+            description: Email verification successful
             schema:
               type: object
               properties:
                 message:
                   type: string
+                  description: Success confirmation message
                   example: "Email verified successfully."
           400:
-            description: Invalid or expired token
+            description: Invalid or expired verification token
             schema:
               type: object
               properties:
                 error:
                   type: string
+                  description: Specific error message
                   example: "Invalid or expired token"
         """
         token = request.args.get('token', '')
@@ -404,7 +512,7 @@ def create_app(config_class=Config):
         Resend email verification link.
         ---
         tags:
-          - Auth
+          - Authentication
         parameters:
           - in: body
             name: body
@@ -445,7 +553,7 @@ def create_app(config_class=Config):
         Refresh access token using a valid refresh token.
         ---
         tags:
-          - Auth
+          - Authentication
         security:
           - Bearer: []
         responses:
@@ -479,7 +587,7 @@ def create_app(config_class=Config):
         Logout user (invalidate token).
         ---
         tags:
-          - Auth
+          - Authentication
         security:
           - Bearer: []
         responses:
@@ -500,46 +608,77 @@ def create_app(config_class=Config):
         return jsonify({'message': 'Logout successful'}), 200
 
     # Define user routes
-    @user_bp.route('/me', methods=['GET'])
+    @user_bp.route('/profile', methods=['GET'])
     @jwt_required()
     def get_user_profile():
         """
-        Get current user's profile.
+        Retrieve the current user's profile information.
+        
+        Returns the authenticated user's profile data including personal information,
+        account status, and timestamps. Sensitive data like password hashes are excluded.
         ---
         tags:
-          - User
+          - User Management
         security:
           - Bearer: []
+        summary: Get current user profile
+        description: |
+          Retrieves the complete profile information for the currently authenticated user.
+          
+          **Returned Data:**
+          - Personal information (name, email, username)
+          - Account status (verification status)
+          - Timestamps (creation date)
+          - Avatar URL (if set)
+          
+          **Security:** Sensitive fields like password hashes and tokens are excluded.
         responses:
           200:
-            description: Returns the current user's profile
+            description: User profile retrieved successfully
             schema:
               type: object
               properties:
                 _id:
                   type: string
+                  description: Unique user identifier
                   example: "60c72b2f9b1e8b001c8e4b8a"
                 username:
                   type: string
-                  example: "user@example.com"
+                  format: email
+                  description: User's email address (used as username)
+                  example: "john.doe@example.com"
                 email:
                   type: string
-                  example: "user@example.com"
+                  format: email
+                  description: User's email address
+                  example: "john.doe@example.com"
                 name:
                   type: string
+                  description: User's full name
                   example: "John Doe"
                 avatar_url:
                   type: string
+                  format: uri
+                  description: URL to user's avatar image
                   example: "https://example.com/avatar.jpg"
                 is_verified:
                   type: boolean
+                  description: Whether the user's email has been verified
                   example: true
                 created_at:
                   type: string
                   format: date-time
+                  description: Account creation timestamp
                   example: "2024-05-01T12:00:00Z"
           401:
-            description: Unauthorized, missing or invalid JWT
+            description: Authentication required
+            schema:
+              type: object
+              properties:
+                msg:
+                  type: string
+                  description: Authentication error message
+                  example: "Missing or invalid authorization"
         """
         user_id = get_jwt_identity()
         user = User.get_by_id(mongo, user_id)
@@ -554,28 +693,45 @@ def create_app(config_class=Config):
         profile.pop('reset_sent_at', None)
         return jsonify(profile), 200
 
-    @user_bp.route('/me', methods=['PUT'])
+    @user_bp.route('/profile', methods=['PUT'])
     @jwt_required()
     def update_user_profile():
         """
-        Update current user's profile.
+        Update the current user's profile information.
+        
+        Allows users to modify their personal information including name and avatar URL.
+        Only non-sensitive fields can be updated through this endpoint.
         ---
         tags:
-          - User
+          - User Management
         security:
           - Bearer: []
+        summary: Update user profile
+        description: |
+          Updates the authenticated user's profile information.
+          
+          **Updatable Fields:**
+          - `name`: User's full name
+          - `avatar_url`: URL to user's avatar image
+          
+          **Security:** Email and other sensitive fields cannot be updated through this endpoint.
         parameters:
           - in: body
             name: body
             required: true
+            description: Profile update data
             schema:
               type: object
               properties:
                 name:
                   type: string
+                  minLength: 1
+                  description: User's full name
                   example: "John Doe"
                 avatar_url:
                   type: string
+                  format: uri
+                  description: URL to user's avatar image
                   example: "https://example.com/avatar.jpg"
         responses:
           200:
@@ -585,17 +741,26 @@ def create_app(config_class=Config):
               properties:
                 message:
                   type: string
+                  description: Success confirmation message
                   example: "Profile updated successfully"
           400:
-            description: Invalid input
+            description: Invalid input data
             schema:
               type: object
               properties:
                 error:
                   type: string
-                  example: "Invalid input"
+                  description: Specific validation error
+                  example: "Name cannot be empty"
           401:
-            description: Unauthorized, missing or invalid JWT
+            description: Authentication required
+            schema:
+              type: object
+              properties:
+                msg:
+                  type: string
+                  description: Authentication error message
+                  example: "Missing or invalid authorization"
         """
         user_id = get_jwt_identity()
         user = User.get_by_id(mongo, user_id)
@@ -625,7 +790,7 @@ def create_app(config_class=Config):
         Change user's password.
         ---
         tags:
-          - User
+          - User Management
         security:
           - Bearer: []
         parameters:
@@ -682,6 +847,59 @@ def create_app(config_class=Config):
         mongo.db.users.update_one({'_id': user._id}, {'$set': {'password_hash': password_hash}})
         logger.info(f'Password changed for user {user.email}')
         return jsonify({'message': 'Password changed successfully'}), 200
+
+    @user_bp.route('/profile', methods=['DELETE'])
+    @jwt_required()
+    def delete_user():
+        """
+        Delete the authenticated user and all their data.
+        ---
+        tags:
+          - User Management
+        security:
+          - Bearer: []
+        summary: Delete the authenticated user and all their documents/templates
+        responses:
+          200:
+            description: User deleted successfully
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "User deleted successfully"
+                examples:
+                  application/json: {"message": "User deleted successfully"}
+          401:
+            description: Unauthorized
+            schema:
+              type: object
+              properties:
+                msg:
+                  type: string
+                  example: "Invalid or expired token"
+          500:
+            description: Error deleting user
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Error deleting user: ..."
+        """
+        user_id = get_jwt_identity()
+        try:
+            # Delete user's documents
+            mongo.db.documents.delete_many({'user_id': user_id})
+            # Delete user's templates
+            mongo.db.templates.delete_many({'user_id': user_id})
+            # Delete user (fix: convert user_id to ObjectId)
+            mongo.db.users.delete_one({'_id': ObjectId(user_id)})
+            logger.info(f'User {user_id} deleted successfully')
+            return jsonify({'message': 'User deleted successfully'}), 200
+        except Exception as e:
+            logger.error(f'Error deleting user {user_id}: {str(e)}', exc_info=True)
+            return jsonify({'error': f'Error deleting user: {str(e)}'}), 500
     
     # Register blueprints
     app.register_blueprint(auth_bp)
@@ -749,78 +967,10 @@ def index():
 
 
 
-@app.route('/api/register', methods=['POST'])
-def api_register():
-    """
-    Register a new user
-    ---
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          required:
-            - username
-            - email
-            - password
-          properties:
-            username:
-              type: string
-              example: alice
-            email:
-              type: string
-              example: alice@example.com
-            password:
-              type: string
-              example: secret
-    responses:
-      201:
-        description: Registration successful    
-      400:
-        description: Username or email already exists
-    """
-    data = request.get_json()
-    username = data.get('username')
-    email = data.get('email')
-    password = data.get('password')
-
-    # Check for missing fields
-    if not username or not email or not password:
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    # Check if username or email already exists
-    if User.get_by_username(mongo, username):
-        return jsonify({'error': 'Username already exists'}), 400
-    if User.get_by_email(mongo, email):
-        return jsonify({'error': 'Email already exists'}), 400
-
-    user = User(username=username, email=email, password=password)
-    mongo.db.users.insert_one(user.to_dict())
-    login_user(user)
-    return jsonify({'message': 'Registration successful'}), 201
 
 
-'''
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        # Check if username or email already exists
-        if User.get_by_username(mongo, username):
-            return render_template('register.html', error="Username already exists")
-        if User.get_by_email(mongo, email):
-            return render_template('register.html', error="Email already exists")
-        user = User(username=username, email=email, password=password)
-        mongo.db.users.insert_one(user.to_dict())
-        login_user(user)
-        return redirect(url_for('registration_success'))
-    return render_template('register.html')
-'''
+
+
 
 
 
@@ -839,129 +989,47 @@ def ensure_ids(items):
 
 
 
-'''
-@app.route('/save_document', methods=['POST'])
-@login_required
-def save_document():
-    """Save the current draft document and change its status to saved"""
-    user_id = current_user._id
-
-    try:
-        # Find the draft document
-        draft_doc = mongo.db.documents.find_one(
-            {'user_id': user_id, 'doc_status': 'draft'})
-        if not draft_doc:
-            logger.warning(f"No draft document found for user {user_id}")
-            return jsonify({'status': 'error', 'message': 'No draft document found'}), 404
-
-        # Update the document status to saved
-        result = mongo.db.documents.update_one(
-            # Use the specific document ID to ensure we only update this one
-            {'_id': draft_doc['_id']},
-            {
-                '$set': {
-                    'doc_status': 'saved',
-                    'updated_at': datetime.now(),
-                    'saved_at': datetime.now()
-                }
-            }
-        )
-
-        if result.modified_count > 0:
-            logger.info(
-                f"Document {draft_doc['_id']} saved successfully for user {user_id}")
-            return jsonify({'status': 'success', 'message': 'Document saved successfully'})
-        else:
-            logger.warning(
-                f"Failed to save document {draft_doc['_id']} for user {user_id}")
-            return jsonify({'status': 'error', 'message': 'Failed to save document'}), 500
-
-    except Exception as e:
-        logger.error(f"Error saving document: {str(e)}", exc_info=True)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-'''
 
 
 
 
-# JWT login route
-@app.route('/api/login', methods=['POST'])
-def api_login():
-    """
-    User login to obtain JWT tokens.
-    ---
-    tags:
-      - Authentication
-    consumes:
-      - application/json
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          required:
-            - username
-            - password
-          properties:
-            username:
-              type: string
-              example: alice
-            password:
-              type: string
-              example: secret
-    responses:
-      200:
-        description: JWT tokens returned
-        schema:
-          type: object
-          properties:
-            access_token:
-              type: string
-            refresh_token:
-              type: string
-      401:
-        description: Invalid credentials
-        schema:
-          type: object
-          properties:
-            msg:
-              type: string
-              example: Bad username or password
-    """
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
-    user = User.get_by_username(mongo, username)
-    if user and user.check_password(password):
-        access_token = create_access_token(identity=str(user._id))
-        refresh_token = create_refresh_token(identity=str(user._id))
-        from flask_jwt_extended.utils import decode_token
-        from datetime import datetime
-        decoded = decode_token(access_token)
-        expires_timestamp = decoded['exp']
-        expires_in = expires_timestamp - int(datetime.utcnow().timestamp())
-        return jsonify(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expiresIn=expires_in
-        ), 200
-    return jsonify({"msg": "Bad username or password"}), 401
 
 
-@app.route('/api/get_documents', methods=['GET'])
+
+
+@app.route('/api/documents', methods=['GET'])
 @jwt_required()
 def get_documents():
     """
-    Get documents for the authenticated user
+    Retrieve all documents for the authenticated user.
+    
+    Returns a list of all documents owned by the current user, including metadata
+    such as title, status, timestamps, and tags. Documents are returned in reverse
+    chronological order (newest first).
     ---
     tags:
-      - Documents
+      - Document Management
     security:
       - Bearer: []
+    summary: Get user's documents
+    description: |
+      Retrieves all documents belonging to the authenticated user.
+      
+      **Returned Data:**
+      - Document metadata (ID, title, status)
+      - Timestamps (creation and last update)
+      - Tags and categorization
+      - User ownership information
+      
+      **Document Status Values:**
+      - `draft`: Work in progress
+      - `saved`: Completed and saved
+      - `published`: Publicly available
+      
+      **Security:** Only returns documents owned by the authenticated user.
     responses:
       200:
-        description: Returns a list of documents for the authenticated user
+        description: Documents retrieved successfully
         schema:
           type: array
           items:
@@ -969,52 +1037,109 @@ def get_documents():
             properties:
               _id:
                 type: string
+                description: Unique document identifier
                 example: "60c72b2f9b1e8b001c8e4b8a"
               title:
                 type: string
-                example: "My Document"
+                description: Document title
+                example: "Research Report 2024"
+              doc_status:
+                type: string
+                enum: [draft, saved, published]
+                description: Current status of the document
+                example: "saved"
+              created_at:
+                type: string
+                format: date-time
+                description: Document creation timestamp
+                example: "2024-05-01T12:00:00Z"
+              updated_at:
+                type: string
+                format: date-time
+                description: Last modification timestamp
+                example: "2024-05-02T15:30:00Z"
+              tags:
+                type: array
+                items:
+                  type: string
+                description: Document tags for categorization
+                example: ["research", "2024", "AI"]
             examples:
-              application/json: [{"_id": "...", "title": "..."}]
+              application/json: [
+                {
+                  "_id": "60c72b2f9b1e8b001c8e4b8a",
+                  "title": "Research Report 2024",
+                  "doc_status": "saved",
+                  "created_at": "2024-05-01T12:00:00Z",
+                  "updated_at": "2024-05-02T15:30:00Z",
+                  "tags": ["research", "2024", "AI"]
+                }
+              ]
       401:
-        description: Unauthorized, missing or invalid JWT
+        description: Authentication required
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              description: Authentication error message
+              example: "Missing or invalid authorization"
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              description: Error status
+              example: "error"
+            message:
+              type: string
+              description: Error message
+              example: "Internal server error"
     """
     user_id = get_jwt_identity()
 
-    logger.info(f'user_id: {user_id}')
+    logger.info(f'GET /api/documents - user_id: {user_id}')
 
-    # Fetch documents for this user from MongoDB
-    user_documents = list(mongo.db.documents.find({'user_id': user_id}))
-    # Convert ObjectId to string for JSON serialization
-    for doc in user_documents:
-        doc['_id'] = str(doc['_id'])
-        if 'user_id' in doc:
-            doc['user_id'] = str(doc['user_id'])
-        if 'created_at' in doc:
-            doc['created_at'] = str(doc['created_at'])
-        if 'updated_at' in doc:
-            doc['updated_at'] = str(doc['updated_at'])
+    try:
+        # Fetch documents for this user from MongoDB
+        user_documents = list(mongo.db.documents.find({'user_id': user_id}))
+        # Convert ObjectId to string for JSON serialization
+        for doc in user_documents:
+            doc['_id'] = str(doc['_id'])
+            if 'user_id' in doc:
+                doc['user_id'] = str(doc['user_id'])
+            if 'created_at' in doc:
+                doc['created_at'] = str(doc['created_at'])
+            if 'updated_at' in doc:
+                doc['updated_at'] = str(doc['updated_at'])
 
-    logger.info(f'user_documents: {user_documents}')
-    
-    return jsonify(user_documents), 200
+        logger.info(f'Found {len(user_documents)} documents for user {user_id}')
+        
+        return jsonify(user_documents), 200
+    except Exception as e:
+        logger.error(f'Error fetching documents for user {user_id}: {str(e)}', exc_info=True)
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
 
 
-@app.route('/api/get_document', methods=['GET'])
+@app.route('/api/documents/<document_id>', methods=['GET'])
 @jwt_required()
-def get_document():
+def get_document(document_id):
     """
     Get a specific document for the authenticated user by document ID
     ---
     tags:
-      - Documents
+      - Document Management
     security:
       - Bearer: []
     parameters:
-      - in: query
+      - in: path
         name: document_id
         required: true
         type: string
         description: The ID of the document to retrieve
+        example: "60c72b2f9b1e8b001c8e4b8a"
     responses:
       200:
         description: Returns the document for the authenticated user
@@ -1110,7 +1235,7 @@ def get_document():
             "tags": ["research", "2024", "AI"]
           }
       400:
-        description: Bad request - missing document_id parameter
+        description: Bad request - invalid document_id format
         schema:
           type: object
           properties:
@@ -1119,9 +1244,20 @@ def get_document():
               example: "error"
             message:
               type: string
-              example: "No document_id provided"
+              example: "Invalid document ID format"
       401:
         description: Unauthorized, missing or invalid JWT
+      403:
+        description: Forbidden - trying to access another user's document
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "error"
+            message:
+              type: string
+              example: "Access denied"
       404:
         description: Document not found
         schema:
@@ -1136,13 +1272,25 @@ def get_document():
     """
     from bson import ObjectId
     user_id = get_jwt_identity()
-    document_id = request.args.get('document_id')
-    if not document_id:
-        return jsonify({'status': 'error', 'message': 'No document_id provided'}), 400
+    
+    logger.info(f'GET /api/documents/{document_id} - user_id: {user_id}')
+    
+    # Validate document_id format
     try:
-        doc = mongo.db.documents.find_one({'_id': ObjectId(document_id), 'user_id': user_id})
+        object_id = ObjectId(document_id)
+    except Exception:
+        return jsonify({'status': 'error', 'message': 'Invalid document ID format'}), 400
+    
+    try:
+        doc = mongo.db.documents.find_one({'_id': object_id})
         if not doc:
             return jsonify({'status': 'error', 'message': 'Document not found'}), 404
+        
+        # Check if user owns this document
+        if doc.get('user_id') != user_id:
+            logger.warning(f'User {user_id} attempted to access document {document_id} owned by {doc.get("user_id")}')
+            return jsonify({'status': 'error', 'message': 'Access denied'}), 403
+        
         # Convert ObjectId to string for JSON serialization
         doc['_id'] = str(doc['_id'])
         if 'user_id' in doc:
@@ -1151,46 +1299,15 @@ def get_document():
             doc['created_at'] = str(doc['created_at'])
         if 'updated_at' in doc:
             doc['updated_at'] = str(doc['updated_at'])
+        
+        logger.info(f'Document {document_id} retrieved successfully for user {user_id}')
         return jsonify(doc), 200
     except Exception as e:
         logger.error(f"Error fetching document {document_id} for user {user_id}: {str(e)}", exc_info=True)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
 
 
-@app.route('/api/refresh', methods=['POST'])
-@jwt_required(refresh=True)
-def refresh():
-    """
-    Refresh endpoint to obtain a new access token using a valid refresh token.
-    ---
-    tags:
-      - Authentication
-    security:
-      - Bearer: []
-    summary: Obtain a new access token using a valid refresh token
-    responses:
-      200:
-        description: Returns a new access token
-        schema:
-          type: object
-          properties:
-            access_token:
-              type: string
-              example: "new_token"
-        examples:
-          application/json: {"access_token": "new_token"}
-      401:
-        description: Unauthorized, missing or invalid refresh token
-        schema:
-          type: object
-          properties:
-            msg:
-              type: string
-              example: "Invalid or expired token"
-    """
-    identity = get_jwt_identity()
-    access_token = create_access_token(identity=identity)
-    return jsonify(access_token=access_token), 200
+
 
 
 
@@ -1209,29 +1326,282 @@ def refresh():
 #     return jsonify([{"id": 1, "name": "Alice"}])
 
 
-@app.route('/api/set_document', methods=['POST'])
+@app.route('/api/documents', methods=['POST'])
 @jwt_required()
-def set_document():
+def create_document():
     """
-    Create or update a document for the authenticated user.
+    Create a new document for the authenticated user.
+    
+    Creates a new document with server-generated ID and associates it with the current user.
+    The document will be created with draft status by default.
     ---
     tags:
-      - Documents
+      - Document Management
+    security:
+      - Bearer: []
+    summary: Create new document
+    description: |
+      Creates a new document and assigns it to the authenticated user.
+      
+      **Document Structure:**
+      - Hierarchical content with sections and subsections
+      - Rich text content support
+      - Metadata (title, status, tags)
+      
+      **Content Requirements:**
+      - Must have a title
+      - Must have content with sections array
+      - Sections can have nested children
+      
+      **Default Values:**
+      - Status: `draft`
+      - Created/Updated timestamps: Current time
+      - Owner: Current authenticated user
+    parameters:
+      - in: body
+        name: document
+        required: true
+        description: Document data to create
+        schema:
+          type: object
+          required:
+            - title
+            - content
+          properties:
+            title:
+              type: string
+              minLength: 1
+              description: Document title
+              example: "Research Report 2024"
+            content:
+              type: object
+              description: Document content structure
+              required:
+                - sections
+              properties:
+                sections:
+                  type: array
+                  description: Array of document sections
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: Unique section identifier
+                        example: "sec-1"
+                      title:
+                        type: string
+                        description: Section title
+                        example: "Introduction"
+                      content:
+                        type: string
+                        description: Section content text
+                        example: "This section introduces the research topic."
+                      children:
+                        type: array
+                        description: Nested subsections
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: Unique subsection identifier
+                              example: "sec-1-1"
+                            title:
+                              type: string
+                              description: Subsection title
+                              example: "Background"
+                            content:
+                              type: string
+                              description: Subsection content text
+                              example: "Background information goes here."
+            doc_status:
+              type: string
+              enum: [draft, saved, published]
+              default: draft
+              description: Document status
+              example: "draft"
+            tags:
+              type: array
+              items:
+                type: string
+              description: Document tags for categorization
+              example: ["research", "2024", "AI"]
+        examples:
+          application/json: {
+            "title": "Research Report 2024",
+            "content": {
+              "sections": [
+                {
+                  "id": "sec-1",
+                  "title": "Introduction",
+                  "content": "This section introduces the research topic.",
+                  "children": [
+                    {
+                      "id": "sec-1-1",
+                      "title": "Background",
+                      "content": "Background information goes here."
+                    }
+                  ]
+                },
+                {
+                  "id": "sec-2",
+                  "title": "Methods",
+                  "content": "Description of research methods.",
+                  "children": []
+                }
+              ]
+            },
+            "doc_status": "draft",
+            "tags": ["research", "2024", "AI"]
+          }
+    responses:
+      201:
+        description: Document created successfully
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              description: Success status
+              example: "success"
+            message:
+              type: string
+              description: Success message
+              example: "Document created successfully"
+            document_id:
+              type: string
+              description: Generated document identifier
+              example: "60c72b2f9b1e8b001c8e4b8a"
+      400:
+        description: Invalid input data
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              description: Error status
+              example: "error"
+            message:
+              type: string
+              description: Specific validation error
+              example: "Missing required fields: title, content"
+      401:
+        description: Authentication required
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              description: Authentication error message
+              example: "Missing or invalid authorization"
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              description: Error status
+              example: "error"
+            message:
+              type: string
+              description: Error message
+              example: "Internal server error"
+    """
+    user_id = get_jwt_identity()
+    data = request.get_json()
+
+    logger.info(f'POST /api/documents - user_id: {user_id}')
+
+    if not data:
+        return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+
+    # Validate required fields
+    required_fields = ['title', 'content']
+    missing_fields = [field for field in required_fields if not data.get(field)]
+    if missing_fields:
+        return jsonify({
+            'status': 'error', 
+            'message': f'Missing required fields: {", ".join(missing_fields)}'
+        }), 400
+
+    # Validate content structure
+    content = data.get('content')
+    if not isinstance(content, dict):
+        return jsonify({
+            'status': 'error',
+            'message': 'Content must be an object'
+        }), 400
+    
+    if 'sections' not in content:
+        return jsonify({
+            'status': 'error',
+            'message': 'Content must contain sections array'
+        }), 400
+
+    # Attach user_id to the document
+    data['user_id'] = user_id
+
+    from datetime import datetime
+    now = datetime.utcnow()
+    data['created_at'] = now
+    data['updated_at'] = now
+
+    # Create new document (server generates ID)
+    try:
+        result = mongo.db.documents.insert_one(data)
+        
+        if result.inserted_id:
+            logger.info(f'Document created successfully for user {user_id} with ID {result.inserted_id}')
+            return jsonify({
+                'status': 'success',
+                'message': 'Document created successfully',
+                'document_id': str(result.inserted_id)
+            }), 201
+        else:
+            logger.error(f'Failed to create document for user {user_id}')
+            return jsonify({'status': 'error', 'message': 'Failed to create document'}), 500
+    except Exception as e:
+        logger.error(f'Error creating document for user {user_id}: {str(e)}', exc_info=True)
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
+
+
+@app.route('/api/documents/<document_id>', methods=['PUT'])
+@jwt_required()
+def put_document(document_id):
+    """
+    Create or update a document with a specific ID for the authenticated user.
+    This endpoint follows REST best practices where PUT is used for idempotent operations.
+    ---
+    tags:
+      - Document Management
     security:
       - Bearer: []
     parameters:
+      - in: path
+        name: document_id
+        required: true
+        type: string
+        description: The ID of the document to create or update
+        example: "60c72b2f9b1e8b001c8e4b8a"
       - in: body
         name: document
         required: true
         schema:
           type: object
-          description: The document JSON to store
+          description: The complete document JSON to store
+          required:
+            - title
+            - content
           properties:
             title:
               type: string
               example: "Research Report 2024"
+              description: The title of the document
             content:
               type: object
+              description: The document content structure
               properties:
                 sections:
                   type: array
@@ -1263,12 +1633,15 @@ def set_document():
                               example: "Background information goes here."
             doc_status:
               type: string
+              enum: [draft, saved, published]
               example: "saved"
+              description: The status of the document
             tags:
               type: array
               items:
                 type: string
               example: ["research", "2024", "AI"]
+              description: Tags associated with the document
         examples:
           application/json: {
             "title": "Research Report 2024",
@@ -1299,111 +1672,247 @@ def set_document():
           }
     responses:
       200:
-        description: Document saved successfully
+        description: Document updated successfully
         schema:
           type: object
           properties:
             status:
               type: string
-              example: success
+              example: "success"
+            message:
+              type: string
+              example: "Document updated successfully"
+            document_id:
+              type: string
+              example: "60c72b2f9b1e8b001c8e4b8a"
+      201:
+        description: Document created successfully
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "success"
+            message:
+              type: string
+              example: "Document created successfully"
             document_id:
               type: string
               example: "60c72b2f9b1e8b001c8e4b8a"
       400:
-        description: Invalid input
+        description: Invalid input or missing required fields
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "error"
+            message:
+              type: string
+              example: "Missing required fields: title, content"
       401:
         description: Unauthorized, missing or invalid JWT
+      403:
+        description: Forbidden - trying to access another user's document
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "error"
+            message:
+              type: string
+              example: "Access denied"
+      404:
+        description: Document not found (when trying to update)
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "error"
+            message:
+              type: string
+              example: "Document not found"
     """
     user_id = get_jwt_identity()
-
-    logger.info(f'in the set_document route, user_id: {user_id}')
-
     data = request.get_json()
 
-    logger.info(f'in the set_document route, data: {data}')
+    logger.info(f'PUT /api/documents/{document_id} - user_id: {user_id}')
 
     if not data:
         return jsonify({'status': 'error', 'message': 'No data provided'}), 400
 
+    # Validate required fields
+    required_fields = ['title', 'content']
+    missing_fields = [field for field in required_fields if not data.get(field)]
+    if missing_fields:
+        return jsonify({
+            'status': 'error', 
+            'message': f'Missing required fields: {", ".join(missing_fields)}'
+        }), 400
+
+    # Validate content structure
+    content = data.get('content')
+    if not isinstance(content, dict):
+        return jsonify({
+            'status': 'error',
+            'message': 'Content must be an object'
+        }), 400
+    
+    if 'sections' not in content:
+        return jsonify({
+            'status': 'error',
+            'message': 'Content must contain sections array'
+        }), 400
+
+    # Validate document_id format
+    from bson import ObjectId
+    try:
+        object_id = ObjectId(document_id)
+    except Exception:
+        return jsonify({'status': 'error', 'message': 'Invalid document ID format'}), 400
+
     # Attach user_id to the document
     data['user_id'] = user_id
+    data['_id'] = object_id
 
-    from bson import ObjectId
     from datetime import datetime
-    doc_id = data.get('_id')
     now = datetime.utcnow()
-    if doc_id:
+
+    # Check if document exists
+    existing_doc = mongo.db.documents.find_one({'_id': object_id})
+    
+    if existing_doc:
+        # Check if user owns this document
+        if existing_doc.get('user_id') != user_id:
+            return jsonify({'status': 'error', 'message': 'Access denied'}), 403
+        
         # Update existing document
-        existing_doc = mongo.db.documents.find_one({'_id': ObjectId(doc_id), 'user_id': user_id})
-        if not existing_doc:
-            return jsonify({'status': 'error', 'message': 'Document not found'}), 404
-        data['_id'] = ObjectId(doc_id)
-        # Preserve created_at, update updated_at
         data['created_at'] = existing_doc.get('created_at', now)
         data['updated_at'] = now
-        result = mongo.db.documents.replace_one({'_id': ObjectId(doc_id), 'user_id': user_id}, data, upsert=True)
-        logger.info(f'in the set_document route, mongodb update result: {result}')
-        return jsonify({'status': 'success', 'document_id': str(doc_id)}), 200
+        result = mongo.db.documents.replace_one({'_id': object_id}, data)
+        
+        # Check if document was updated (modified_count) or if it was already identical (matched_count)
+        if result.modified_count > 0 or result.matched_count > 0:
+            logger.info(f'Document {document_id} updated successfully for user {user_id}')
+            return jsonify({
+                'status': 'success',
+                'message': 'Document updated successfully',
+                'document_id': document_id
+            }), 200
+        else:
+            logger.error(f'Failed to update document {document_id} for user {user_id}')
+            return jsonify({'status': 'error', 'message': 'Failed to update document'}), 500
     else:
-        # Insert new document
+        # Create new document with specified ID
         data['created_at'] = now
         data['updated_at'] = now
         result = mongo.db.documents.insert_one(data)
-        logger.info(f'in the set_document route, new document insert attempt, mongodb insert result: {result}')
-        return jsonify({'status': 'success', 'document_id': str(result.inserted_id)}), 200
+        
+        if result.inserted_id:
+            logger.info(f'Document {document_id} created successfully for user {user_id}')
+            return jsonify({
+                'status': 'success',
+                'message': 'Document created successfully',
+                'document_id': document_id
+            }), 201
+        else:
+            logger.error(f'Failed to create document {document_id} for user {user_id}')
+            return jsonify({'status': 'error', 'message': 'Failed to create document'}), 500
 
 
-@app.route('/api/delete_user', methods=['DELETE'])
+@app.route('/api/documents/<document_id>', methods=['DELETE'])
 @jwt_required()
-def api_delete_user():
+def delete_document(document_id):
     """
-    Delete the authenticated user and all their data.
+    Delete a specific document for the authenticated user.
     ---
     tags:
-      - User
+      - Document Management
     security:
       - Bearer: []
-    summary: Delete the authenticated user and all their documents/templates
+    parameters:
+      - in: path
+        name: document_id
+        required: true
+        type: string
+        description: The ID of the document to delete
+        example: "60c72b2f9b1e8b001c8e4b8a"
     responses:
       200:
-        description: User deleted successfully
+        description: Document deleted successfully
         schema:
           type: object
           properties:
+            status:
+              type: string
+              example: "success"
             message:
               type: string
-              example: "User deleted successfully"
-        examples:
-          application/json: {"message": "User deleted successfully"}
+              example: "Document deleted successfully"
       401:
-        description: Unauthorized
+        description: Unauthorized, missing or invalid JWT
+      403:
+        description: Forbidden - trying to access another user's document
         schema:
           type: object
           properties:
-            msg:
+            status:
               type: string
-              example: "Invalid or expired token"
-      500:
-        description: Error deleting user
+              example: "error"
+            message:
+              type: string
+              example: "Access denied"
+      404:
+        description: Document not found
         schema:
           type: object
           properties:
-            error:
+            status:
               type: string
-              example: "Error deleting user: ..."
+              example: "error"
+            message:
+              type: string
+              example: "Document not found"
     """
     user_id = get_jwt_identity()
+    
+    logger.info(f'DELETE /api/documents/{document_id} - user_id: {user_id}')
+
+    # Validate document_id format
+    from bson import ObjectId
     try:
-        # Delete user's documents
-        mongo.db.documents.delete_many({'user_id': user_id})
-        # Delete user's templates
-        mongo.db.templates.delete_many({'user_id': user_id})
-        # Delete user (fix: convert user_id to ObjectId)
-        mongo.db.users.delete_one({'_id': ObjectId(user_id)})
-        return jsonify({'message': 'User deleted successfully'}), 200
+        object_id = ObjectId(document_id)
+    except Exception:
+        return jsonify({'status': 'error', 'message': 'Invalid document ID format'}), 400
+
+    # Check if document exists and user owns it
+    existing_doc = mongo.db.documents.find_one({'_id': object_id})
+    
+    if not existing_doc:
+        return jsonify({'status': 'error', 'message': 'Document not found'}), 404
+    
+    if existing_doc.get('user_id') != user_id:
+        logger.warning(f'User {user_id} attempted to delete document {document_id} owned by {existing_doc.get("user_id")}')
+        return jsonify({'status': 'error', 'message': 'Access denied'}), 403
+
+    # Delete the document
+    try:
+        result = mongo.db.documents.delete_one({'_id': object_id})
+        
+        if result.deleted_count > 0:
+            logger.info(f'Document {document_id} deleted successfully for user {user_id}')
+            return jsonify({
+                'status': 'success',
+                'message': 'Document deleted successfully'
+            }), 200
+        else:
+            logger.error(f'Failed to delete document {document_id} for user {user_id}')
+            return jsonify({'status': 'error', 'message': 'Failed to delete document'}), 500
     except Exception as e:
-        logger.error(f'Error deleting user {user_id}: {str(e)}', exc_info=True)
-        return jsonify({'error': f'Error deleting user: {str(e)}'}), 500
+        logger.error(f'Error deleting document {document_id} for user {user_id}: {str(e)}', exc_info=True)
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
 
 
 @app.errorhandler(JWTExtendedException)
