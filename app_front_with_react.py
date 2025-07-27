@@ -22,9 +22,6 @@ import time
 from flask_cors import CORS
 from flasgger import Swagger
 
-
-
-from flask import Flask, jsonify, request
 from flask_jwt_extended import (
     JWTManager, create_access_token, create_refresh_token,
     jwt_required, get_jwt_identity
@@ -32,7 +29,6 @@ from flask_jwt_extended import (
 from flask_jwt_extended.exceptions import JWTExtendedException, NoAuthorizationError, JWTDecodeError
 
 from flask import Blueprint
-
 
 # Create a logger
 # if the name is not specified, the root logger will be used and it will propagate to all other loggers, like MongoDB logs
@@ -43,9 +39,9 @@ def create_app(config_class=Config):
     app = Flask(__name__, static_folder='static')
     CORS(app, resources={r"/*": {"origins": "*"}})
     app.config.from_object(config_class)
-    # Add a secret key for JWT
-    app.config['JWT_SECRET_KEY'] = 'your-secret-key'  # Change this!
-
+    
+    # Load JWT secret from environment or use default (should be changed in production)
+    app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
 
     # Initialize MongoDB
     mongo.init_app(app)
@@ -84,7 +80,12 @@ def create_app(config_class=Config):
     def load_user(user_id):
         return User.get_by_id(mongo, user_id)
 
+    # Initialize JWT
     jwt = JWTManager(app)
+
+    # Initialize bcrypt and serializer
+    bcrypt = Bcrypt(app)
+    serializer = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
 
     # Custom JWT error handlers to ensure all JWT errors return 401
     @jwt.invalid_token_loader
@@ -102,12 +103,12 @@ def create_app(config_class=Config):
         logger.warning('Expired token')
         return jsonify({'msg': 'Token has expired'}), 401
 
+    # Initialize rate limiter
+    limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
+    
     # Create and register blueprints
     auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
     user_bp = Blueprint('user', __name__, url_prefix='/api/user')
-    
-    # Initialize rate limiter first
-    limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
     
     # Define auth routes
     @auth_bp.route('/register', methods=['POST'])
@@ -214,7 +215,7 @@ def create_app(config_class=Config):
 
         # Send verification email (mock)
         verification_url = f"https://your-frontend-app/verify-email?token={verification_token}"
-        logger.info(f"Send verification email to {email}: {verification_url}")
+        logger.info(f"Send verification email to {email}")  # Removed sensitive URL from log
         # TODO: Integrate Flask-Mail or other email backend
 
         return jsonify({'message': 'Registration successful. Please check your email to verify your account.'}), 201
@@ -353,7 +354,7 @@ def create_app(config_class=Config):
             reset_token = serializer.dumps(email, salt='reset-password')
             mongo.db.users.update_one({'_id': user._id}, {'$set': {'reset_token': reset_token, 'reset_sent_at': datetime.utcnow()}})
             reset_url = f"https://your-frontend-app/reset-password?token={reset_token}"
-            logger.info(f"Send password reset email to {email}: {reset_url}")
+            logger.info(f"Send password reset email to {email}")
             # TODO: Integrate Flask-Mail or other email backend
         return jsonify({'message': 'If the email exists, a password reset link has been sent.'}), 200
 
@@ -542,7 +543,7 @@ def create_app(config_class=Config):
             verification_token = serializer.dumps(email, salt='email-verify')
             mongo.db.users.update_one({'_id': user._id}, {'$set': {'verification_token': verification_token, 'verification_sent_at': datetime.utcnow()}})
             verification_url = f"https://your-frontend-app/verify-email?token={verification_token}"
-            logger.info(f"Resend verification email to {email}: {verification_url}")
+            logger.info(f"Resend verification email to {email}")
             # TODO: Integrate Flask-Mail or other email backend
         return jsonify({'message': 'If the email exists and is not verified, a verification link has been sent.'}), 200
 
@@ -585,11 +586,23 @@ def create_app(config_class=Config):
     def logout():
         """
         Logout user (invalidate token).
+        
+        Logs out the current user. In a production environment, this should implement
+        token blacklisting for enhanced security. Currently, the client is responsible
+        for discarding the token.
         ---
         tags:
           - Authentication
         security:
           - Bearer: []
+        summary: Logout current user
+        description: |
+          Logs out the authenticated user. The client should discard the JWT token
+          after receiving a successful response.
+          
+          **Security Note:** For enhanced security in production, implement token
+          blacklisting using Redis or a similar mechanism to invalidate tokens
+          server-side.
         responses:
           200:
             description: Logout successful
@@ -598,13 +611,25 @@ def create_app(config_class=Config):
               properties:
                 message:
                   type: string
+                  description: Success confirmation message
                   example: "Logout successful"
           401:
             description: Unauthorized, missing or invalid token
+            schema:
+              type: object
+              properties:
+                msg:
+                  type: string
+                  description: Authentication error message
+                  example: "Missing or invalid authorization"
         """
-        # TODO: Implement token blacklisting if needed
-        # For now, just return success (client should discard tokens)
-        logger.info(f'User logout: {get_jwt_identity()}')
+        user_id = get_jwt_identity()
+        logger.info(f'User logout: {user_id}')
+        
+        # TODO: Implement token blacklisting for enhanced security
+        # Example with Redis:
+        # redis_client.setex(f"blacklist:{jwt_token}", 3600, "blacklisted")
+        
         return jsonify({'message': 'Logout successful'}), 200
 
     # Define user routes
@@ -930,15 +955,18 @@ swagger_template = {
     },
     "security": [
         {"Bearer": []}
+    ],
+    "consumes": [
+        "application/json"
+    ],
+    "produces": [
+        "application/json"
     ]
 }
 
 swagger = Swagger(app, template=swagger_template)
 
 db_service = DatabaseService(mongo)
-
-bcrypt = Bcrypt(app)
-serializer = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
 
 # Add custom template filters
 
@@ -1270,7 +1298,6 @@ def get_document(document_id):
               type: string
               example: "Document not found"
     """
-    from bson import ObjectId
     user_id = get_jwt_identity()
     
     logger.info(f'GET /api/documents/{document_id} - user_id: {user_id}')
@@ -1767,7 +1794,6 @@ def put_document(document_id):
         }), 400
 
     # Validate document_id format
-    from bson import ObjectId
     try:
         object_id = ObjectId(document_id)
     except Exception:
@@ -1881,7 +1907,6 @@ def delete_document(document_id):
     logger.info(f'DELETE /api/documents/{document_id} - user_id: {user_id}')
 
     # Validate document_id format
-    from bson import ObjectId
     try:
         object_id = ObjectId(document_id)
     except Exception:
@@ -1948,12 +1973,15 @@ def handle_unprocessable_entity(e):
     # Fallback: always return 401 for 422
     return jsonify({'msg': 'Invalid or malformed request', 'error': str(e)}), 401
 
-
-# Register blueprints
-# app.register_blueprint(auth_bp)
-# app.register_blueprint(user_bp)
-
-# limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    """Handle rate limiting errors"""
+    logger.warning(f'Rate limit exceeded: {str(e)}')
+    return jsonify({
+        'error': 'Rate limit exceeded', 
+        'message': 'Too many requests. Please try again later.',
+        'retry_after': getattr(e, 'retry_after', None)
+    }), 429
 
 if __name__ == '__main__':
     app.logger.info('Starting Flask application')
