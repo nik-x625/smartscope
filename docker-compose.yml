@@ -14,28 +14,11 @@ services:
     depends_on:
       - mongodb_service
 
-  # web_htmx:
-  #   build: .
-  #   image: smartscope_image_be_htmx
-  #   container_name: smartscope_be_htmx
-  #   ports:
-  #     - "8000:8000"
-  #   volumes:
-  #     - .:/opt/
-  #   environment:
-  #     - FLASK_APP=app_front_with_htmx_deprecated.py
-  #     - FLASK_ENV=development
-  #     - MONGO_URI=mongodb://mongodb:27017/smartscope
-  #   depends_on:
-  #     - mongodb
-
   mongodb_service:
     container_name: smartscope_mongodb_container
     image: mongo:latest
     ports:
       - "27017:27017"
     volumes:
-      - mongodb_data:/data/db
+      - /opt/mongodb_data:/data/db
 
-volumes:
-  mongodb_data: 

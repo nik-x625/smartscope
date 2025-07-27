@@ -13,9 +13,8 @@ alias kgi='kubectl get all,ingress'
 # SmartScope aliases
 alias back="cd /opt/smartscope_back"
 alias front="cd /opt/smartscope_front"
-alias plt="docker exec -it $(docker ps  | grep 'smartscope_be_react' | awk '{print $1}') /bin/bash"
-alias tests_back="docker exec -it $(docker ps  | grep 'smartscope_be_react' | awk '{print $1}') pytest -v /opt/test_api.py"
+alias plt="docker exec -it $(docker ps  | grep 'smartscope_be_container' | awk '{print $1}') /bin/bash"
+alias tests_back="docker exec -it $(docker ps  | grep 'smartscope_be_container' | awk '{print $1}') pytest -v /opt/test_api.py"
 alias mongo="docker exec -it $(docker ps  | grep 'mongo' | awk '{print $1}') mongosh smartscope"
 alias logs='tail /opt/smartscope_back/logs/* -f'
 #alias mongo="docker exec -it $(docker ps  | grep 'qlines_mongo_container' | awk '{print $1}') mongosh -u root -p example --authenticationDatabase admin"
-
