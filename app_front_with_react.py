@@ -83,10 +83,6 @@ def create_app(config_class=Config):
     # Initialize JWT
     jwt = JWTManager(app)
 
-    # Initialize bcrypt and serializer
-    bcrypt = Bcrypt(app)
-    serializer = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
-
     # Custom JWT error handlers to ensure all JWT errors return 401
     @jwt.invalid_token_loader
     def custom_invalid_token_loader(reason):
@@ -555,8 +551,6 @@ def create_app(config_class=Config):
         ---
         tags:
           - Authentication
-        security:
-          - Bearer: []
         responses:
           200:
             description: Returns a new access token
@@ -593,8 +587,6 @@ def create_app(config_class=Config):
         ---
         tags:
           - Authentication
-        security:
-          - Bearer: []
         summary: Logout current user
         description: |
           Logs out the authenticated user. The client should discard the JWT token
@@ -930,12 +922,14 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
 
-    # limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
+    # Create instances for use within the function
+    bcrypt = Bcrypt(app)
+    serializer = URLSafeTimedSerializer(app.config['JWT_SECRET_KEY'])
 
-    return app, auth_bp, user_bp, limiter
+    return app, auth_bp, user_bp, limiter, bcrypt, serializer
 
 # Create the app instance and blueprints
-app, auth_bp, user_bp, limiter = create_app()
+app, auth_bp, user_bp, limiter, bcrypt, serializer = create_app()
 
 # Add Swagger securityDefinitions for Bearer token
 swagger_template = {
