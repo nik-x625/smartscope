@@ -1,7 +1,7 @@
 import pytest
-from app_front_with_react import app
+from app_main import app
 from flask import json
-from app_front_with_react import mongo
+from app_main import mongo
 from datetime import datetime
 import time
 import re
@@ -76,7 +76,7 @@ def create_user_with_reset_token(client, user=TEST_USER):
     user_id = create_verified_user(client, user)
     
     # Add reset token
-    from app_front_with_react import serializer
+    from app_main import serializer
     reset_token = serializer.dumps(user['email'], salt='reset-password')
     mongo.db.users.update_one(
         {'_id': user_id}, 
@@ -93,7 +93,7 @@ def get_access_token_direct(client, user=TEST_USER):
         user_doc = mongo.db.users.find_one({'email': user['email']})
     
     # Create token directly using the app's JWT manager
-    from app_front_with_react import create_access_token
+    from app_main import create_access_token
     return create_access_token(identity=str(user_doc['_id']))
 
 def get_refresh_token_direct(client, user=TEST_USER):
@@ -104,7 +104,7 @@ def get_refresh_token_direct(client, user=TEST_USER):
         user_doc = mongo.db.users.find_one({'email': user['email']})
     
     # Create token directly using the app's JWT manager
-    from app_front_with_react import create_refresh_token
+    from app_main import create_refresh_token
     return create_refresh_token(identity=str(user_doc['_id']))
 
 # --- Authentication Tests ---
@@ -295,7 +295,7 @@ def test_auth_verify_email_already_verified(client):
     create_verified_user(client)
     user = mongo.db.users.find_one({'email': TEST_USER['email']})
     # Create a new verification token and store it in the database
-    from app_front_with_react import serializer
+    from app_main import serializer
     verification_token = serializer.dumps(TEST_USER['email'], salt='email-verify')
     mongo.db.users.update_one(
         {'_id': user['_id']}, 

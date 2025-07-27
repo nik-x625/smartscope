@@ -1979,5 +1979,5 @@ def ratelimit_handler(e):
 
 if __name__ == '__main__':
     app.logger.info('Starting Flask application')
-    app.run(host=Config.HOST, debug=Config.DEBUG, port=9000)
+    app.run(host=Config.HOST, debug=Config.DEBUG, port=Config.PORT)
 

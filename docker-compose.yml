@@ -1,36 +1,36 @@
 services:
-  web_react:
+  smartscope_be_service:
     build: .
-    image: smartscope_image_be_react
-    container_name: smartscope_be_react
+    image: smartscope_be_image
+    container_name: smartscope_be_container
     ports:
       - "9000:9000"
     volumes:
       - .:/opt/
     environment:
-      - FLASK_APP=app_front_with_react.py
+      - FLASK_APP=app_main.py
       - FLASK_ENV=development
-      - MONGO_URI=mongodb://mongodb:27017/smartscope
+      - MONGO_URI=mongodb://mongodb_service:27017/smartscope
     depends_on:
-      - mongodb
+      - mongodb_service
 
-  web_htmx:
-    build: .
-    image: smartscope_image_be_htmx
-    container_name: smartscope_be_htmx
-    ports:
-      - "8000:8000"
-    volumes:
-      - .:/opt/
-    environment:
-      - FLASK_APP=app_front_with_htmx_deprecated.py
-      - FLASK_ENV=development
-      - MONGO_URI=mongodb://mongodb:27017/smartscope
-    depends_on:
-      - mongodb
+  # web_htmx:
+  #   build: .
+  #   image: smartscope_image_be_htmx
+  #   container_name: smartscope_be_htmx
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - .:/opt/
+  #   environment:
+  #     - FLASK_APP=app_front_with_htmx_deprecated.py
+  #     - FLASK_ENV=development
+  #     - MONGO_URI=mongodb://mongodb:27017/smartscope
+  #   depends_on:
+  #     - mongodb
 
-  mongodb:
-    container_name: smartscope_mongodb
+  mongodb_service:
+    container_name: smartscope_mongodb_container
     image: mongo:latest
     ports:
       - "27017:27017"
