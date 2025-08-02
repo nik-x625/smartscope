@@ -46,7 +46,7 @@ logger = logging.getLogger('smartscope')
 def create_app(config_class=Config):
     # Create and configure the app
     app = Flask(__name__, static_folder='static')
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    CORS(app, resources={r"/*": {"origins": "*"}}) # Important Note: Change to only allow requests from the frontend app but only in the production environment, make sure to not remove this in development. Relevant unit tests must be updated to reflect this.
     app.config.from_object(config_class)
     
     # Load JWT secret from environment or use default (should be changed in production)
