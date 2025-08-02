@@ -1,3 +1,12 @@
+# TEMPORARY DEVELOPMENT SETTING: Email verification has been disabled for simplified testing
+# TODO: Re-enable email verification for production deployment
+# 
+# Changes made:
+# 1. User registration: is_verified=True by default (bypasses email verification)
+# 2. Login: Email verification check commented out
+# 3. Registration: No verification email sent, no verification token created
+# 4. All email verification related code is commented with TODO reminders
+
 from flask import Flask, render_template, request, jsonify, redirect, url_for, make_response, session, flash
 import os
 import logging
@@ -116,7 +125,7 @@ def create_app(config_class=Config):
         before they can log in. Password must meet security requirements.
         ---
         tags:
-          - Authentication
+          - Authentication and User Management
         summary: Register a new user account
         description: |
           Register a new user account with email verification. The account will be created but marked
@@ -194,27 +203,33 @@ def create_app(config_class=Config):
 
         # Hash password
         password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+        
+        # TEMPORARILY DISABLED: Email verification step
+        # TODO: Re-enable email verification for production
         # Create verification token
-        verification_token = serializer.dumps(email, salt='email-verify')
-        # Create user
+        # verification_token = serializer.dumps(email, salt='email-verify')
+        
+        # Create user with email verification TEMPORARILY DISABLED
         user = User(
             username=email,  # Use email as username for now
             email=email,
             password=None,  # We'll set hash directly
             name=name,
-            is_verified=False,
-            verification_token=verification_token,
-            verification_sent_at=datetime.utcnow()
+            is_verified=True,  # TEMPORARILY SET TO TRUE - bypass email verification
+            # verification_token=verification_token,  # TEMPORARILY DISABLED
+            # verification_sent_at=datetime.utcnow()  # TEMPORARILY DISABLED
         )
         user.password_hash = password_hash
         mongo.db.users.insert_one(user.to_dict())
 
-        # Send verification email (mock)
-        verification_url = f"https://your-frontend-app/verify-email?token={verification_token}"
-        logger.info(f"Send verification email to {email}")  # Removed sensitive URL from log
+        # TEMPORARILY DISABLED: Send verification email (mock)
+        # TODO: Re-enable email verification for production
+        # verification_url = f"https://your-frontend-app/verify-email?token={verification_token}"
+        # logger.info(f"Send verification email to {email}")  # Removed sensitive URL from log
         # TODO: Integrate Flask-Mail or other email backend
 
-        return jsonify({'message': 'Registration successful. Please check your email to verify your account.'}), 201
+        # TEMPORARILY MODIFIED: Return success message without email verification requirement
+        return jsonify({'message': 'Registration successful. Account is ready to use.'}), 201
 
     @auth_bp.route('/login', methods=['POST'])
     @limiter.limit("5 per minute")
@@ -226,7 +241,7 @@ def create_app(config_class=Config):
         Only verified users can log in. Rate limited to 5 attempts per minute.
         ---
         tags:
-          - Authentication
+          - Authentication and User Management
         summary: User login with JWT token generation
         description: |
           Authenticate a user with their email and password. Returns JWT tokens for API access.
@@ -295,8 +310,12 @@ def create_app(config_class=Config):
         user = User.get_by_email(mongo, email)
         if not user or not bcrypt.check_password_hash(user.password_hash, password):
             return jsonify({'error': 'Invalid credentials'}), 401
-        if not user.is_verified:
-            return jsonify({'error': 'Email not verified'}), 401
+        
+        # TEMPORARILY DISABLED: Email verification check
+        # TODO: Re-enable email verification check for production
+        # if not user.is_verified:
+        #     return jsonify({'error': 'Email not verified'}), 401
+        
         access_token = create_access_token(identity=str(user._id))
         refresh_token = create_refresh_token(identity=str(user._id))
         return jsonify(access_token=access_token, refresh_token=refresh_token), 200
@@ -310,7 +329,7 @@ def create_app(config_class=Config):
         For security reasons, the response is always the same regardless of whether the email exists.
         ---
         tags:
-          - Authentication
+          - Authentication and User Management
         summary: Request password reset email
         description: |
           Initiates the password reset process by sending a reset link to the user's email.
@@ -329,6 +348,7 @@ def create_app(config_class=Config):
               properties:
                 email:
                   type: string
+                  format: email
                   format: email
                   description: Email address to send reset link to
                   example: "john.doe@example.com"
@@ -363,7 +383,7 @@ def create_app(config_class=Config):
         The token expires after 1 hour for security.
         ---
         tags:
-          - Authentication
+          - Authentication and User Management
         summary: Reset password with token
         description: |
           Resets the user's password using a valid reset token received via email.
@@ -446,7 +466,7 @@ def create_app(config_class=Config):
         Users must verify their email before they can log in.
         ---
         tags:
-          - Authentication
+          - Authentication and User Management
         summary: Verify email address
         description: |
           Verifies the user's email address using a token sent during registration.
@@ -488,20 +508,26 @@ def create_app(config_class=Config):
                   description: Specific error message
                   example: "Invalid or expired token"
         """
-        token = request.args.get('token', '')
-        try:
-            email = serializer.loads(token, salt='email-verify', max_age=86400)
-        except Exception as e:
-            return jsonify({'error': 'Invalid or expired token'}), 400
-        user = User.get_by_email(mongo, email)
-        if not user or user.verification_token != token:
-            return jsonify({'error': 'Invalid or expired token'}), 400
-        if user.is_verified:
-            return jsonify({'message': 'Email already verified.'}), 200
-        # Mark user as verified
-        mongo.db.users.update_one({'_id': user._id}, {'$set': {'is_verified': True}, '$unset': {'verification_token': '', 'verification_sent_at': ''}})
-        logger.info(f'Email verified for user {email}')
-        return jsonify({'message': 'Email verified successfully.'}), 200
+        # TEMPORARILY DISABLED: Email verification endpoint
+        # TODO: Re-enable email verification for production
+        # This endpoint is temporarily disabled since email verification is bypassed
+        return jsonify({'message': 'Email verification is temporarily disabled for development.'}), 200
+        
+        # ORIGINAL CODE (TEMPORARILY DISABLED):
+        # token = request.args.get('token', '')
+        # try:
+        #     email = serializer.loads(token, salt='email-verify', max_age=86400)
+        # except Exception as e:
+        #     return jsonify({'error': 'Invalid or expired token'}), 400
+        # user = User.get_by_email(mongo, email)
+        # if not user or user.verification_token != token:
+        #     return jsonify({'error': 'Invalid or expired token'}), 400
+        # if user.is_verified:
+        #     return jsonify({'message': 'Email already verified.'}), 200
+        # # Mark user as verified
+        # mongo.db.users.update_one({'_id': user._id}, {'$set': {'is_verified': True}, '$unset': {'verification_token': '', 'verification_sent_at': ''}})
+        # logger.info(f'Email verified for user {email}')
+        # return jsonify({'message': 'Email verified successfully.'}), 200
 
     @auth_bp.route('/resend-verification', methods=['POST'])
     def resend_verification():
@@ -509,7 +535,7 @@ def create_app(config_class=Config):
         Resend email verification link.
         ---
         tags:
-          - Authentication
+          - Authentication and User Management
         parameters:
           - in: body
             name: body
@@ -532,16 +558,22 @@ def create_app(config_class=Config):
                   type: string
                   example: "If the email exists and is not verified, a verification link has been sent."
         """
-        data = request.get_json()
-        email = data.get('email', '').strip().lower()
-        user = User.get_by_email(mongo, email)
-        if user and not user.is_verified:
-            verification_token = serializer.dumps(email, salt='email-verify')
-            mongo.db.users.update_one({'_id': user._id}, {'$set': {'verification_token': verification_token, 'verification_sent_at': datetime.utcnow()}})
-            verification_url = f"https://your-frontend-app/verify-email?token={verification_token}"
-            logger.info(f"Resend verification email to {email}")
-            # TODO: Integrate Flask-Mail or other email backend
-        return jsonify({'message': 'If the email exists and is not verified, a verification link has been sent.'}), 200
+        # TEMPORARILY DISABLED: Resend verification email
+        # TODO: Re-enable email verification for production
+        # This endpoint is temporarily disabled since email verification is bypassed
+        return jsonify({'message': 'Email verification is temporarily disabled for development.'}), 200
+        
+        # ORIGINAL CODE (TEMPORARILY DISABLED):
+        # data = request.get_json()
+        # email = data.get('email', '').strip().lower()
+        # user = User.get_by_email(mongo, email)
+        # if user and not user.is_verified:
+        #     verification_token = serializer.dumps(email, salt='email-verify')
+        #     mongo.db.users.update_one({'_id': user._id}, {'$set': {'verification_token': verification_token, 'verification_sent_at': datetime.utcnow()}})
+        #     verification_url = f"https://your-frontend-app/verify-email?token={verification_token}"
+        #     logger.info(f"Resend verification email to {email}")
+        #     # TODO: Integrate Flask-Mail or other email backend
+        # return jsonify({'message': 'If the email exists and is not verified, a verification link has been sent.'}), 200
 
     @auth_bp.route('/refresh-token', methods=['POST'])
     @jwt_required(refresh=True)
@@ -550,7 +582,7 @@ def create_app(config_class=Config):
         Refresh access token using a valid refresh token.
         ---
         tags:
-          - Authentication
+          - Authentication and User Management
         responses:
           200:
             description: Returns a new access token
@@ -586,7 +618,7 @@ def create_app(config_class=Config):
         for discarding the token.
         ---
         tags:
-          - Authentication
+          - Authentication and User Management
         summary: Logout current user
         description: |
           Logs out the authenticated user. The client should discard the JWT token
@@ -635,7 +667,7 @@ def create_app(config_class=Config):
         account status, and timestamps. Sensitive data like password hashes are excluded.
         ---
         tags:
-          - User Management
+          - Authentication and User Management
         security:
           - Bearer: []
         summary: Get current user profile
@@ -720,7 +752,7 @@ def create_app(config_class=Config):
         Only non-sensitive fields can be updated through this endpoint.
         ---
         tags:
-          - User Management
+          - Authentication and User Management
         security:
           - Bearer: []
         summary: Update user profile
@@ -807,7 +839,7 @@ def create_app(config_class=Config):
         Change user's password.
         ---
         tags:
-          - User Management
+          - Authentication and User Management
         security:
           - Bearer: []
         parameters:
@@ -872,7 +904,7 @@ def create_app(config_class=Config):
         Delete the authenticated user and all their data.
         ---
         tags:
-          - User Management
+          - Authentication and User Management
         security:
           - Bearer: []
         summary: Delete the authenticated user and all their documents/templates
@@ -955,6 +987,16 @@ swagger_template = {
     ],
     "produces": [
         "application/json"
+    ],
+    "tags": [
+        {
+            "name": "Authentication and User Management",
+            "description": "User authentication, session management, profile management, and password operations"
+        },
+        {
+            "name": "Document Management",
+            "description": "Document CRUD operations and management"
+        }
     ]
 }
 
