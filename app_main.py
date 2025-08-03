@@ -108,8 +108,11 @@ def create_app(config_class=Config):
         logger.warning('Expired token')
         return jsonify({'msg': 'Token has expired'}), 401
 
+    # TEMPORARILY DISABLED: Rate limiter for development
+    # TODO: Re-enable rate limiting for production deployment
     # Initialize rate limiter
-    limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
+    # limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
+    limiter = None  # Temporarily disabled for development
     
     # Create and register blueprints
     auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
@@ -232,13 +235,15 @@ def create_app(config_class=Config):
         return jsonify({'message': 'Registration successful. Account is ready to use.'}), 201
 
     @auth_bp.route('/login', methods=['POST'])
-    @limiter.limit("5 per minute")
+    # TEMPORARILY DISABLED: Rate limiting for development
+    # TODO: Re-enable rate limiting for production deployment
+    # @limiter.limit("5 per minute")
     def auth_login():
         """
         Authenticate user and obtain JWT tokens.
         
         Validates user credentials and returns JWT access and refresh tokens for API authentication.
-        Only verified users can log in. Rate limited to 5 attempts per minute.
+        Only verified users can log in. Rate limiting temporarily disabled for development.
         ---
         tags:
           - Authentication and User Management
@@ -250,7 +255,7 @@ def create_app(config_class=Config):
           - User account must exist
           - Email must be verified
           - Password must be correct
-          - Rate limited to prevent brute force attacks
+          - Rate limiting temporarily disabled for development (TODO: Re-enable for production)
         parameters:
           - in: body
             name: body
@@ -295,7 +300,7 @@ def create_app(config_class=Config):
                   description: Specific authentication error
                   example: "Invalid credentials or email not verified"
           429:
-            description: Too many login attempts
+            description: Too many login attempts (temporarily disabled for development)
             schema:
               type: object
               properties:
@@ -2009,15 +2014,17 @@ def handle_unprocessable_entity(e):
     # Fallback: always return 401 for 422
     return jsonify({'msg': 'Invalid or malformed request', 'error': str(e)}), 401
 
-@app.errorhandler(429)
-def ratelimit_handler(e):
-    """Handle rate limiting errors"""
-    logger.warning(f'Rate limit exceeded: {str(e)}')
-    return jsonify({
-        'error': 'Rate limit exceeded', 
-        'message': 'Too many requests. Please try again later.',
-        'retry_after': getattr(e, 'retry_after', None)
-    }), 429
+# TEMPORARILY DISABLED: Rate limit error handler for development
+# TODO: Re-enable rate limit error handler for production deployment
+# @app.errorhandler(429)
+# def ratelimit_handler(e):
+#     """Handle rate limiting errors"""
+#     logger.warning(f'Rate limit exceeded: {str(e)}')
+#     return jsonify({
+#         'error': 'Rate limit exceeded', 
+#         'message': 'Too many requests. Please try again later.',
+#         'retry_after': getattr(e, 'retry_after', None)
+#     }), 429
 
 if __name__ == '__main__':
     app.logger.info('Starting Flask application')

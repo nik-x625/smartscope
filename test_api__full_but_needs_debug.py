@@ -36,7 +36,7 @@ def register_user(client, user):
 def login_user(client, user):
     """Login a user and return tokens"""
     # Add longer delay to avoid rate limiting
-    time.sleep(3)
+    time.sleep(0.5)
     return client.post(f'{API_BASE}/auth/login', json={
         'email': user['email'],
         'password': user['password']
