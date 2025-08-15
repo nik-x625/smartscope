@@ -187,3 +187,24 @@ def test_get_documents_success(client, test_user):
             break
     
     assert found_document, "Created document should be in the documents list" 
+
+
+def test_auth_check_unauthorized(client):
+    """Auth check should return 401 without token"""
+    response = client.get(f"{API_BASE}/auth/check")
+    assert response.status_code == 401
+
+
+def test_auth_check_authorized(client, test_user):
+    """Auth check should return authenticated info with valid token"""
+    access_token = get_access_token(client, test_user)
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    response = client.get(f"{API_BASE}/auth/check", headers=headers)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data.get('authenticated') is True
+    assert 'user' in data
+    assert data['user']['email'] == test_user['email']
+    assert 'exp' in data and isinstance(data['exp'], int)

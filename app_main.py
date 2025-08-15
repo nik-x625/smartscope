@@ -33,7 +33,7 @@ from flasgger import Swagger
 
 from flask_jwt_extended import (
     JWTManager, create_access_token, create_refresh_token,
-    jwt_required, get_jwt_identity
+    jwt_required, get_jwt_identity, get_jwt
 )
 from flask_jwt_extended.exceptions import JWTExtendedException, NoAuthorizationError, JWTDecodeError
 
@@ -660,6 +660,65 @@ def create_app(config_class=Config):
         # redis_client.setex(f"blacklist:{jwt_token}", 3600, "blacklisted")
         
         return jsonify({'message': 'Logout successful'}), 200
+
+    @auth_bp.route('/check', methods=['GET'])
+    @jwt_required()
+    def auth_check():
+        """
+        Lightweight authentication check endpoint.
+        
+        Verifies the provided JWT access token and returns minimal
+        information indicating whether the user is authenticated.
+        ---
+        tags:
+          - Authentication and User Management
+        summary: Check authentication status
+        description: |
+          Returns 200 with `{ authenticated: true, user, exp }` if the JWT is valid.
+          Returns 401 via global JWT handlers if the token is missing/invalid/expired.
+        responses:
+          200:
+            description: Authenticated
+            schema:
+              type: object
+              properties:
+                authenticated:
+                  type: boolean
+                  example: true
+                user:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                    email:
+                      type: string
+                    name:
+                      type: string
+                    is_verified:
+                      type: boolean
+                exp:
+                  type: integer
+                  description: JWT expiration (unix timestamp)
+          401:
+            description: Unauthorized
+        """
+        user_id = get_jwt_identity()
+        user = User.get_by_id(mongo, user_id)
+        if not user:
+            # Treat missing user as unauthorized to avoid leaking state
+            return jsonify({'authenticated': False}), 401
+        claims = get_jwt()
+        exp = claims.get('exp')
+        return jsonify({
+            'authenticated': True,
+            'user': {
+                '_id': str(user._id),
+                'email': user.email,
+                'name': user.name,
+                'is_verified': bool(getattr(user, 'is_verified', False))
+            },
+            'exp': exp
+        }), 200
 
     # Define user routes
     @user_bp.route('/profile', methods=['GET'])
