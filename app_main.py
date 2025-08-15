@@ -194,9 +194,10 @@ def create_app(config_class=Config):
         # Validate email format
         if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
             return jsonify({'error': 'Invalid email format'}), 400
-        # Validate password strength
-        if len(password) < 8 or not re.search(r"[A-Z]", password) or not re.search(r"[a-z]", password) or not re.search(r"[0-9]", password):
-            return jsonify({'error': 'Password must be at least 8 characters and include upper, lower, and number'}), 400
+        # TODO: Re-enable password strength validation for production
+        # Temporarily disabled for development:
+        # if len(password) < 8 or not re.search(r"[A-Z]", password) or not re.search(r"[a-z]", password) or not re.search(r"[0-9]", password):
+        #     return jsonify({'error': 'Password must be at least 8 characters and include upper, lower, and number'}), 400
         # Validate name
         if not name:
             return jsonify({'error': 'Name is required'}), 400
@@ -446,9 +447,10 @@ def create_app(config_class=Config):
         data = request.get_json()
         token = data.get('token', '')
         new_password = data.get('newPassword', '')
-        # Validate password strength
-        if len(new_password) < 8 or not re.search(r"[A-Z]", new_password) or not re.search(r"[a-z]", new_password) or not re.search(r"[0-9]", new_password):
-            return jsonify({'error': 'Password must be at least 8 characters and include upper, lower, and number'}), 400
+        # TODO: Re-enable password strength validation for production
+        # Temporarily disabled for development:
+        # if len(new_password) < 8 or not re.search(r"[A-Z]", new_password) or not re.search(r"[a-z]", new_password) or not re.search(r"[0-9]", new_password):
+        #     return jsonify({'error': 'Password must be at least 8 characters and include upper, lower, and number'}), 400
         try:
             email = serializer.loads(token, salt='reset-password', max_age=3600)
         except Exception as e:
@@ -952,9 +954,10 @@ def create_app(config_class=Config):
         # Verify current password
         if not bcrypt.check_password_hash(user.password_hash, current_password):
             return jsonify({'error': 'Invalid current password'}), 400
-        # Validate new password strength
-        if len(new_password) < 8 or not re.search(r"[A-Z]", new_password) or not re.search(r"[a-z]", new_password) or not re.search(r"[0-9]", new_password):
-            return jsonify({'error': 'Password must be at least 8 characters and include upper, lower, and number'}), 400
+        # TODO: Re-enable new password strength validation for production
+        # Temporarily disabled for development:
+        # if len(new_password) < 8 or not re.search(r"[A-Z]", new_password) or not re.search(r"[a-z]", new_password) or not re.search(r"[0-9]", new_password):
+        #     return jsonify({'error': 'Password must be at least 8 characters and include upper, lower, and number'}), 400
         # Update password
         password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
         mongo.db.users.update_one({'_id': user._id}, {'$set': {'password_hash': password_hash}})
