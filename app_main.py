@@ -7,7 +7,7 @@
 # 3. Registration: No verification email sent, no verification token created
 # 4. All email verification related code is commented with TODO reminders
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, make_response, session, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, make_response, session, flash, send_file
 import os
 import logging
 from logging.handlers import RotatingFileHandler
@@ -38,6 +38,7 @@ from flask_jwt_extended import (
 from flask_jwt_extended.exceptions import JWTExtendedException, NoAuthorizationError, JWTDecodeError
 
 from flask import Blueprint
+from werkzeug.utils import secure_filename
 
 # Create a logger
 # if the name is not specified, the root logger will be used and it will propagate to all other loggers, like MongoDB logs
@@ -48,6 +49,9 @@ def create_app(config_class=Config):
     app = Flask(__name__, static_folder='static')
     CORS(app, resources={r"/*": {"origins": "*"}}) # Important Note: Change to only allow requests from the frontend app but only in the production environment, make sure to not remove this in development. Relevant unit tests must be updated to reflect this.
     app.config.from_object(config_class)
+    # Ensure upload folder exists
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
     # Load JWT secret from environment or use default (should be changed in production)
     app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
@@ -117,6 +121,10 @@ def create_app(config_class=Config):
     # Create and register blueprints
     auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
     user_bp = Blueprint('user', __name__, url_prefix='/api/user')
+    files_bp = Blueprint('files', __name__, url_prefix='/api/files')
+
+    def _allowed_file(filename):
+        return "." in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
     
     # Define auth routes
     @auth_bp.route('/register', methods=['POST'])
@@ -198,9 +206,19 @@ def create_app(config_class=Config):
         # Temporarily disabled for development:
         # if len(password) < 8 or not re.search(r"[A-Z]", password) or not re.search(r"[a-z]", password) or not re.search(r"[0-9]", password):
         #     return jsonify({'error': 'Password must be at least 8 characters and include upper, lower, and number'}), 400
-        # Validate name
+        # SECURITY: Validate and sanitize name
         if not name:
             return jsonify({'error': 'Name is required'}), 400
+        
+        # Sanitize name: remove leading/trailing whitespace, limit length
+        name = name.strip()
+        if len(name) > 100:  # Limit name to 100 characters
+            return jsonify({'error': 'Name too long (maximum 100 characters)'}), 400
+        
+        # Check for potentially dangerous characters (basic check)
+        dangerous_chars = ['<', '>', '"', "'", '&', '/', '\\', '|', ':', '*', '?']
+        if any(char in name for char in dangerous_chars):
+            return jsonify({'error': 'Name contains invalid characters'}), 400
         # Check if user exists
         if User.get_by_email(mongo, email):
             return jsonify({'error': 'Email already exists'}), 400
@@ -599,8 +617,7 @@ def create_app(config_class=Config):
                 access_token:
                   type: string
                   example: "new_access_token"
-              examples:
-                application/json: {"access_token": "new_access_token"}
+              example: {"access_token": "new_access_token"}
           401:
             description: Unauthorized, missing or invalid refresh token
             schema:
@@ -884,9 +901,18 @@ def create_app(config_class=Config):
         data = request.get_json()
         name = data.get('name', '').strip() if data.get('name') else None
         avatar_url = data.get('avatar_url', '').strip() if data.get('avatar_url') else None
-        # Validate name
-        if name is not None and not name:
-            return jsonify({'error': 'Name cannot be empty'}), 400
+        # SECURITY: Validate and sanitize name
+        if name is not None:
+            name = name.strip()
+            if not name:
+                return jsonify({'error': 'Name cannot be empty'}), 400
+            if len(name) > 100:  # Limit name to 100 characters
+                return jsonify({'error': 'Name too long (maximum 100 characters)'}), 400
+            
+            # Check for potentially dangerous characters (basic check)
+            dangerous_chars = ['<', '>', '"', "'", '&', '/', '\\', '|', ':', '*', '?']
+            if any(char in name for char in dangerous_chars):
+                return jsonify({'error': 'Name contains invalid characters'}), 400
         # Update profile
         update_data = {}
         if name is not None:
@@ -964,6 +990,326 @@ def create_app(config_class=Config):
         logger.info(f'Password changed for user {user.email}')
         return jsonify({'message': 'Password changed successfully'}), 200
 
+    # Define file routes (local filesystem storage)
+    @files_bp.route('/upload', methods=['POST'])
+    @jwt_required()
+    def upload_file():
+        """
+        Upload a file via multipart form-data. Stores on local filesystem.
+        ---
+        tags:
+          - File Management
+        consumes:
+          - multipart/form-data
+        parameters:
+          - in: formData
+            name: file
+            type: file
+            required: true
+          - in: formData
+            name: document_id
+            type: string
+            required: false
+        responses:
+          201:
+            description: File uploaded
+            schema:
+              type: object
+              properties:
+                file_id:
+                  type: string
+                  description: Unique file identifier
+                  example: "60c72b2f9b1e8b001c8e4b8a"
+                original_filename:
+                  type: string
+                  description: Original filename
+                  example: "document.pdf"
+                content_type:
+                  type: string
+                  description: MIME type of the file
+                  example: "application/pdf"
+                size:
+                  type: integer
+                  description: File size in bytes
+                  example: 1048576
+          400:
+            description: Invalid request
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  description: Error message
+                  example: "No file part"
+          401:
+            description: Unauthorized
+            schema:
+              type: object
+              properties:
+                msg:
+                  type: string
+                  description: Authentication error message
+                  example: "Missing or invalid authorization"
+        """
+        user_id = get_jwt_identity()
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+        if not _allowed_file(file.filename):
+            return jsonify({'error': 'File type not allowed'}), 400
+        original_filename = secure_filename(file.filename)
+        ext = original_filename.rsplit('.', 1)[1].lower()
+        file_id = ObjectId()
+        
+        # Get user info for better filename
+        user = User.get_by_id(mongo, user_id)
+        username = user.name if user else f"user_{user_id}"
+        
+        # SECURITY: Sanitize username for filesystem safety
+        # 1. Apply secure_filename to remove dangerous characters
+        # 2. Limit length to prevent extremely long filenames
+        # 3. Replace underscores with hyphens for consistency
+        username_safe = secure_filename(username)
+        if len(username_safe) > 50:  # Limit username part to 50 chars
+            username_safe = username_safe[:50]
+        username_safe = username_safe.replace('_', '-')  # Consistent separator
+        
+        # Create timestamp for filename (YYYYMMDD_HHMMSS format)
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        
+        # SECURITY: Ensure original_filename is safe and not too long
+        # secure_filename already sanitized it, but let's add length check
+        if len(original_filename) > 100:  # Limit original filename to 100 chars
+            # Keep extension, truncate name part
+            name_part, ext_part = os.path.splitext(original_filename)
+            original_filename = name_part[:100-len(ext_part)] + ext_part
+        
+        # Create descriptive filename: timestamp__username__fileid__originalname.ext
+        # Using double underscores for better field isolation
+        stored_name = f"{timestamp}__{username_safe}__{file_id}__{original_filename}"
+        
+        # FINAL SECURITY CHECK: Ensure total filename length is reasonable
+        if len(stored_name) > 255:  # Unix filename limit
+            # Truncate while preserving extension and essential parts
+            ext = os.path.splitext(stored_name)[1]
+            max_base_length = 255 - len(ext)
+            stored_name = stored_name[:max_base_length] + ext
+        fs_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_name)
+        file.save(fs_path)
+        size = os.path.getsize(fs_path)
+        content_type = file.mimetype or 'application/octet-stream'
+        document_id = request.form.get('document_id')
+        try:
+            metadata = {
+                '_id': file_id,
+                'user_id': user_id,
+                'document_id': document_id,
+                'original_filename': original_filename,
+                'stored_name': stored_name,
+                'content_type': content_type,
+                'size': size,
+                'created_at': datetime.utcnow(),
+            }
+            mongo.db.files.insert_one(metadata)
+        except Exception as e:
+            try:
+                os.remove(fs_path)
+            except Exception:
+                pass
+            return jsonify({'error': 'Failed to save file metadata'}), 500
+        return jsonify({
+            'file_id': str(file_id),
+            'original_filename': original_filename,
+            'content_type': content_type,
+            'size': size
+        }), 201
+
+    @files_bp.route('/', methods=['GET'])
+    @jwt_required()
+    def list_user_files():
+        """
+        List all files for the authenticated user
+        ---
+        tags:
+          - File Management
+        responses:
+          200:
+            description: List of user's files
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  _id:
+                    type: string
+                    description: File ID
+                  original_filename:
+                    type: string
+                    description: Original filename
+                  content_type:
+                    type: string
+                    description: MIME type
+                  size:
+                    type: integer
+                    description: File size in bytes
+                  created_at:
+                    type: string
+                    description: Creation timestamp
+          401:
+            description: Unauthorized
+            schema:
+              type: object
+              properties:
+                msg:
+                  type: string
+                  description: Authentication error message
+                  example: "Missing or invalid authorization"
+        """
+        user_id = get_jwt_identity()
+        files = list(mongo.db.files.find({'user_id': user_id}))
+        
+        # Convert ObjectId to string for JSON serialization
+        for file_info in files:
+            file_info['_id'] = str(file_info['_id'])
+            if 'created_at' in file_info:
+                file_info['created_at'] = str(file_info['created_at'])
+        
+        return jsonify(files), 200
+
+    @files_bp.route('/<file_id>', methods=['GET'])
+    @jwt_required()
+    def get_file_metadata(file_id):
+        """
+        Get file metadata for the authenticated user
+        ---
+        tags:
+          - File Management
+        responses:
+          200:
+            description: Metadata returned
+            schema:
+              type: object
+              properties:
+                file_id:
+                  type: string
+                  description: File ID
+                  example: "60c72b2f9b1e8b001c8e4b8a"
+                original_filename:
+                  type: string
+                  description: Original filename
+                  example: "document.pdf"
+                content_type:
+                  type: string
+                  description: MIME type
+                  example: "application/pdf"
+                size:
+                  type: integer
+                  description: File size in bytes
+                  example: 1048576
+                document_id:
+                  type: string
+                  description: Associated document ID
+                  example: "60c72b2f9b1e8b001c8e4b8b"
+                created_at:
+                  type: string
+                  description: Creation timestamp
+                  example: "2024-05-01T12:00:00Z"
+          400:
+            description: Invalid file ID format
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  description: Error message
+                  example: "Invalid file id"
+          401:
+            description: Unauthorized
+            schema:
+              type: object
+              properties:
+                msg:
+                  type: string
+                  description: Authentication error message
+                  example: "Missing or invalid authorization"
+          404:
+            description: Not found
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  description: Error message
+                  example: "Not found"
+        """
+        user_id = get_jwt_identity()
+        try:
+            oid = ObjectId(file_id)
+        except Exception:
+            return jsonify({'error': 'Invalid file id'}), 400
+        meta = mongo.db.files.find_one({'_id': oid})
+        if not meta or meta.get('user_id') != user_id:
+            return jsonify({'error': 'Not found'}), 404
+        resp = {
+            'file_id': str(meta['_id']),
+            'original_filename': meta.get('original_filename'),
+            'content_type': meta.get('content_type'),
+            'size': meta.get('size'),
+            'document_id': meta.get('document_id'),
+            'created_at': str(meta.get('created_at')),
+        }
+        return jsonify(resp), 200
+
+    @files_bp.route('/<file_id>/download', methods=['GET'])
+    @jwt_required()
+    def download_file(file_id):
+        """
+        Download/stream a file owned by the authenticated user
+        ---
+        tags:
+          - File Management
+        """
+        user_id = get_jwt_identity()
+        try:
+            oid = ObjectId(file_id)
+        except Exception:
+            return jsonify({'error': 'Invalid file id'}), 400
+        meta = mongo.db.files.find_one({'_id': oid})
+        if not meta or meta.get('user_id') != user_id:
+            return jsonify({'error': 'Not found'}), 404
+        fs_path = os.path.join(app.config['UPLOAD_FOLDER'], meta['stored_name'])
+        if not os.path.exists(fs_path):
+            return jsonify({'error': 'File missing'}), 404
+        return send_file(fs_path, mimetype=meta.get('content_type') or 'application/octet-stream')
+
+    @files_bp.route('/<file_id>', methods=['DELETE'])
+    @jwt_required()
+    def delete_file_record(file_id):
+        """
+        Delete a file and its metadata (owner only)
+        ---
+        tags:
+          - File Management
+        """
+        user_id = get_jwt_identity()
+        try:
+            oid = ObjectId(file_id)
+        except Exception:
+            return jsonify({'error': 'Invalid file id'}), 400
+        meta = mongo.db.files.find_one({'_id': oid})
+        if not meta or meta.get('user_id') != user_id:
+            return jsonify({'error': 'Not found'}), 404
+        fs_path = os.path.join(app.config['UPLOAD_FOLDER'], meta['stored_name'])
+        try:
+            if os.path.exists(fs_path):
+                os.remove(fs_path)
+            mongo.db.files.delete_one({'_id': oid})
+        except Exception as e:
+            return jsonify({'error': 'Failed to delete file'}), 500
+        return jsonify({'message': 'File deleted'}), 200
+
     @user_bp.route('/profile', methods=['DELETE'])
     @jwt_required()
     def delete_user():
@@ -984,8 +1330,7 @@ def create_app(config_class=Config):
                 message:
                   type: string
                   example: "User deleted successfully"
-                examples:
-                  application/json: {"message": "User deleted successfully"}
+                example: {"message": "User deleted successfully"}
           401:
             description: Unauthorized
             schema:
@@ -1009,6 +1354,8 @@ def create_app(config_class=Config):
             mongo.db.documents.delete_many({'user_id': user_id})
             # Delete user's templates
             mongo.db.templates.delete_many({'user_id': user_id})
+            # Delete user's files
+            mongo.db.files.delete_many({'user_id': user_id})
             # Delete user (fix: convert user_id to ObjectId)
             mongo.db.users.delete_one({'_id': ObjectId(user_id)})
             logger.info(f'User {user_id} deleted successfully')
@@ -1020,6 +1367,7 @@ def create_app(config_class=Config):
     # Register blueprints
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
+    app.register_blueprint(files_bp)
 
     # Create instances for use within the function
     bcrypt = Bcrypt(app)
@@ -1063,6 +1411,10 @@ swagger_template = {
         {
             "name": "Document Management",
             "description": "Document CRUD operations and management"
+        },
+        {
+            "name": "File Management",
+            "description": "File upload, download, and management operations"
         }
     ]
 }
@@ -1076,25 +1428,26 @@ db_service = DatabaseService(mongo)
 
 
 
-@app.route('/')
-@login_required
-def index():
-    """
-    Root page (dashboard)
-    ---
-    tags:
-      - UI
-    summary: Render the main dashboard page (HTML)
-    responses:
-      200:
-        description: Dashboard HTML page
-        examples:
-          text/html: "<html>...dashboard...</html>"
-      302:
-        description: Redirect to login if not authenticated
-    """
-    logger.info('Accessing root page, redirecting to dashboard')
-    return render_template('index.html')
+# @app.route('/')
+# @login_required
+# def index():
+#     """
+#     Root page (dashboard)
+#     ---
+#     tags:
+#       - UI
+#     summary: Render the main dashboard page (HTML)
+#     responses:
+#       200:
+#         description: Dashboard HTML page
+#         schema:
+#           type: string
+#           example: "<html>...dashboard...</html>"
+#       302:
+#         description: Redirect to login if not authenticated
+#     """
+#     logger.info('Accessing root page, redirecting to dashboard')
+#     return render_template('index.html')
 
 
 
@@ -1195,17 +1548,16 @@ def get_documents():
                   type: string
                 description: Document tags for categorization
                 example: ["research", "2024", "AI"]
-            examples:
-              application/json: [
-                {
-                  "_id": "60c72b2f9b1e8b001c8e4b8a",
-                  "title": "Research Report 2024",
-                  "doc_status": "saved",
-                  "created_at": "2024-05-01T12:00:00Z",
-                  "updated_at": "2024-05-02T15:30:00Z",
-                  "tags": ["research", "2024", "AI"]
-                }
-              ]
+            example: [
+              {
+                "_id": "60c72b2f9b1e8b001c8e4b8a",
+                "title": "Research Report 2024",
+                "doc_status": "saved",
+                "created_at": "2024-05-01T12:00:00Z",
+                "updated_at": "2024-05-02T15:30:00Z",
+                "tags": ["research", "2024", "AI"]
+              }
+            ]
       401:
         description: Authentication required
         schema:
@@ -1333,38 +1685,37 @@ def get_document(document_id):
               items:
                 type: string
               example: ["research", "2024", "AI"]
-        examples:
-          application/json: {
-            "_id": "60c72b2f9b1e8b001c8e4b8a",
-            "title": "Research Report 2024",
-            "content": {
-              "sections": [
-                {
-                  "id": "sec-1",
-                  "title": "Introduction",
-                  "content": "This section introduces the research topic.",
-                  "children": [
-                    {
-                      "id": "sec-1-1",
-                      "title": "Background",
-                      "content": "Background information goes here."
-                    }
-                  ]
-                },
-                {
-                  "id": "sec-2",
-                  "title": "Methods",
-                  "content": "Description of research methods.",
-                  "children": []
-                }
-              ]
-            },
-            "user_id": "60c72b2f9b1e8b001c8e4b8b",
-            "doc_status": "saved",
-            "created_at": "2024-05-01T12:00:00Z",
-            "updated_at": "2024-05-02T15:30:00Z",
-            "tags": ["research", "2024", "AI"]
-          }
+        example: {
+          "_id": "60c72b2f9b1e8b001c8e4b8a",
+          "title": "Research Report 2024",
+          "content": {
+            "sections": [
+              {
+                "id": "sec-1",
+                "title": "Introduction",
+                "content": "This section introduces the research topic.",
+                "children": [
+                  {
+                    "id": "sec-1-1",
+                    "title": "Background",
+                    "content": "Background information goes here."
+                  }
+                ]
+              },
+              {
+                "id": "sec-2",
+                "title": "Methods",
+                "content": "Description of research methods.",
+                "children": []
+              }
+            ]
+          },
+          "user_id": "60c72b2f9b1e8b001c8e4b8b",
+          "doc_status": "saved",
+          "created_at": "2024-05-01T12:00:00Z",
+          "updated_at": "2024-05-02T15:30:00Z",
+          "tags": ["research", "2024", "AI"]
+        }
       400:
         description: Bad request - invalid document_id format
         schema:
@@ -1557,34 +1908,33 @@ def create_document():
                 type: string
               description: Document tags for categorization
               example: ["research", "2024", "AI"]
-        examples:
-          application/json: {
-            "title": "Research Report 2024",
-            "content": {
-              "sections": [
-                {
-                  "id": "sec-1",
-                  "title": "Introduction",
-                  "content": "This section introduces the research topic.",
-                  "children": [
-                    {
-                      "id": "sec-1-1",
-                      "title": "Background",
-                      "content": "Background information goes here."
-                    }
-                  ]
-                },
-                {
-                  "id": "sec-2",
-                  "title": "Methods",
-                  "content": "Description of research methods.",
-                  "children": []
-                }
-              ]
-            },
-            "doc_status": "draft",
-            "tags": ["research", "2024", "AI"]
-          }
+        example: {
+          "title": "Research Report 2024",
+          "content": {
+            "sections": [
+              {
+                "id": "sec-1",
+                "title": "Introduction",
+                "content": "This section introduces the research topic.",
+                "children": [
+                  {
+                    "id": "sec-1-1",
+                    "title": "Background",
+                    "content": "Background information goes here."
+                  }
+                ]
+              },
+              {
+                "id": "sec-2",
+                "title": "Methods",
+                "content": "Description of research methods.",
+                "children": []
+              }
+            ]
+          },
+          "doc_status": "draft",
+          "tags": ["research", "2024", "AI"]
+        }
     responses:
       201:
         description: Document created successfully
@@ -1772,34 +2122,33 @@ def put_document(document_id):
                 type: string
               example: ["research", "2024", "AI"]
               description: Tags associated with the document
-        examples:
-          application/json: {
-            "title": "Research Report 2024",
-            "content": {
-              "sections": [
-                {
-                  "id": "sec-1",
-                  "title": "Introduction",
-                  "content": "This section introduces the research topic.",
-                  "children": [
-                    {
-                      "id": "sec-1-1",
-                      "title": "Background",
-                      "content": "Background information goes here."
-                    }
-                  ]
-                },
-                {
-                  "id": "sec-2",
-                  "title": "Methods",
-                  "content": "Description of research methods.",
-                  "children": []
-                }
-              ]
-            },
-            "doc_status": "saved",
-            "tags": ["research", "2024", "AI"]
-          }
+        example: {
+          "title": "Research Report 2024",
+          "content": {
+            "sections": [
+              {
+                "id": "sec-1",
+                "title": "Introduction",
+                "content": "This section introduces the research topic.",
+                "children": [
+                  {
+                    "id": "sec-1-1",
+                    "title": "Background",
+                    "content": "Background information goes here."
+                  }
+                ]
+              },
+              {
+                "id": "sec-2",
+                "title": "Methods",
+                "content": "Description of research methods.",
+                "children": []
+              }
+            ]
+          },
+          "doc_status": "saved",
+          "tags": ["research", "2024", "AI"]
+        }
     responses:
       200:
         description: Document updated successfully

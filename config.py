@@ -6,6 +6,11 @@ class Config:
     DEBUG = os.getenv("DEBUG", "True") == "True"
     PORT = int(os.getenv("PORT", 9000))
     HOST = os.getenv("HOST", "0.0.0.0")
+
+    # File uploads
+    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
+    MAX_CONTENT_LENGTH = 15 * 1024 * 1024  # 15MB
+    ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "pdf", "docx", "txt", "zip"}
     # JWT settings
     from datetime import timedelta
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=60)  # 60 minutes
