@@ -1,16 +1,18 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 @dataclass
 class Section:
     title: str
     content: str = ""
     subsections: List['Section'] = field(default_factory=list)
+    effort: Optional[float] = None  # Simple effort in hours
 
     def to_dict(self):
         return {
             "title": self.title,
             "content": self.content,
+            "effort": self.effort,
             "children": [s.to_dict() for s in self.subsections]
         }
 
@@ -19,11 +21,13 @@ class Chapter:
     title: str
     content: str = ""
     sections: List[Section] = field(default_factory=list)
+    effort: Optional[float] = None  # Simple effort in hours
 
     def to_dict(self):
         return {
             "title": self.title,
             "content": self.content,
+            "effort": self.effort,
             "children": [section.to_dict() for section in self.sections]
         }
 

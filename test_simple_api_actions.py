@@ -208,3 +208,60 @@ def test_auth_check_authorized(client, test_user):
     assert 'user' in data
     assert data['user']['email'] == test_user['email']
     assert 'exp' in data and isinstance(data['exp'], int)
+
+def test_document_with_effort_tracking(client, test_user):
+    """Test document creation with effort tracking"""
+    access_token = get_access_token(client, test_user)
+    headers = {'Authorization': f'Bearer {access_token}'}
+    
+    # Create a document with effort values
+    document_data = {
+        "title": "Test Document with Effort",
+        "content": {
+            "sections": [
+                {
+                    "id": "sec-1",
+                    "title": "Introduction",
+                    "content": "This is the introduction section.",
+                    "effort": 8.0,
+                    "children": [
+                        {
+                            "id": "sec-1-1",
+                            "title": "Background",
+                            "content": "Background information.",
+                            "effort": 4.0
+                        }
+                    ]
+                },
+                {
+                    "id": "sec-2",
+                    "title": "Methods",
+                    "content": "Research methods description.",
+                    "effort": 12.0,
+                    "children": []
+                }
+            ]
+        },
+        "doc_status": "draft",
+        "tags": ["test", "effort"]
+    }
+    
+    # Create document
+    response = client.post(f"{API_BASE}/documents", json=document_data, headers=headers)
+    assert response.status_code == 201
+    
+    data = response.json()
+    assert data["status"] == "success"
+    document_id = data["document_id"]
+    
+    # Retrieve and verify effort values
+    get_response = client.get(f"{API_BASE}/documents/{document_id}", headers=headers)
+    assert get_response.status_code == 200
+    
+    doc_data = get_response.json()
+    assert doc_data["content"]["sections"][0]["effort"] == 8.0
+    assert doc_data["content"]["sections"][0]["children"][0]["effort"] == 4.0
+    assert doc_data["content"]["sections"][1]["effort"] == 12.0
+    
+    # Clean up
+    cleanup_user(client, test_user)

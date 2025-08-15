@@ -1652,6 +1652,12 @@ def get_document(document_id):
                       content:
                         type: string
                         example: "This section introduces the research topic."
+                      effort:
+                        type: number
+                        format: float
+                        minimum: 0
+                        example: 8.0
+                        description: Effort in hours for this section
                       children:
                         type: array
                         items:
@@ -1666,6 +1672,12 @@ def get_document(document_id):
                             content:
                               type: string
                               example: "Background information goes here."
+                            effort:
+                              type: number
+                              format: float
+                              minimum: 0
+                              example: 4.0
+                              description: Effort in hours for this section
             user_id:
               type: string
               example: "60c72b2f9b1e8b001c8e4b8b"
@@ -1694,11 +1706,13 @@ def get_document(document_id):
                 "id": "sec-1",
                 "title": "Introduction",
                 "content": "This section introduces the research topic.",
+                "effort": 8.0,
                 "children": [
                   {
                     "id": "sec-1-1",
                     "title": "Background",
-                    "content": "Background information goes here."
+                    "content": "Background information goes here.",
+                    "effort": 4.0
                   }
                 ]
               },
@@ -1706,6 +1720,7 @@ def get_document(document_id):
                 "id": "sec-2",
                 "title": "Methods",
                 "content": "Description of research methods.",
+                "effort": 12.0,
                 "children": []
               }
             ]
@@ -1878,6 +1893,12 @@ def create_document():
                         type: string
                         description: Section content text
                         example: "This section introduces the research topic."
+                      effort:
+                        type: number
+                        format: float
+                        minimum: 0
+                        example: 8.0
+                        description: Effort in hours for this section
                       children:
                         type: array
                         description: Nested subsections
@@ -1896,6 +1917,12 @@ def create_document():
                               type: string
                               description: Subsection content text
                               example: "Background information goes here."
+                            effort:
+                              type: number
+                              format: float
+                              minimum: 0
+                              example: 4.0
+                              description: Effort in hours for this subsection
             doc_status:
               type: string
               enum: [draft, saved, published]
@@ -1916,11 +1943,13 @@ def create_document():
                 "id": "sec-1",
                 "title": "Introduction",
                 "content": "This section introduces the research topic.",
+                "effort": 8.0,
                 "children": [
                   {
                     "id": "sec-1-1",
                     "title": "Background",
-                    "content": "Background information goes here."
+                    "content": "Background information goes here.",
+                    "effort": 4.0
                   }
                 ]
               },
@@ -1928,6 +1957,7 @@ def create_document():
                 "id": "sec-2",
                 "title": "Methods",
                 "content": "Description of research methods.",
+                "effort": 12.0,
                 "children": []
               }
             ]
@@ -2097,6 +2127,12 @@ def put_document(document_id):
                       content:
                         type: string
                         example: "This section introduces the research topic."
+                      effort:
+                        type: number
+                        format: float
+                        minimum: 0
+                        example: 8.0
+                        description: Effort in hours for this section
                       children:
                         type: array
                         items:
@@ -2111,6 +2147,12 @@ def put_document(document_id):
                             content:
                               type: string
                               example: "Background information goes here."
+                            effort:
+                              type: number
+                              format: float
+                              minimum: 0
+                              example: 4.0
+                              description: Effort in hours for this subsection
             doc_status:
               type: string
               enum: [draft, saved, published]
@@ -2130,11 +2172,13 @@ def put_document(document_id):
                 "id": "sec-1",
                 "title": "Introduction",
                 "content": "This section introduces the research topic.",
+                "effort": 8.0,
                 "children": [
                   {
                     "id": "sec-1-1",
                     "title": "Background",
-                    "content": "Background information goes here."
+                    "content": "Background information goes here.",
+                    "effort": 4.0
                   }
                 ]
               },
@@ -2142,6 +2186,7 @@ def put_document(document_id):
                 "id": "sec-2",
                 "title": "Methods",
                 "content": "Description of research methods.",
+                "effort": 12.0,
                 "children": []
               }
             ]
