@@ -1120,8 +1120,9 @@ def create_app(config_class=Config):
                 pass
             return jsonify({'error': 'Failed to save file metadata'}), 500
         return jsonify({
+            'status': 'success',
             'file_id': str(file_id),
-            'original_filename': original_filename,
+            'filename': original_filename,
             'content_type': content_type,
             'size': size
         }), 201
@@ -1255,10 +1256,10 @@ def create_app(config_class=Config):
         resp = {
             'file_id': str(meta['_id']),
             'original_filename': meta.get('original_filename'),
-            'content_type': meta.get('content_type'),
+            'file_type': meta.get('content_type', '').split('/')[-1] if meta.get('content_type') else '',  # Extract file type from MIME type
             'size': meta.get('size'),
             'document_id': meta.get('document_id'),
-            'created_at': str(meta.get('created_at')),
+            'uploaded_at': str(meta.get('created_at')),
         }
         return jsonify(resp), 200
 
@@ -1451,14 +1452,6 @@ db_service = DatabaseService(mongo)
 
 
 
-
-
-
-
-
-
-
-
 def ensure_ids(items):
     processed = []
     for item in items:
@@ -1470,14 +1463,6 @@ def ensure_ids(items):
             item['children'] = ensure_ids(item['children'])
         processed.append(item)
     return processed
-
-
-
-
-
-
-
-
 
 
 

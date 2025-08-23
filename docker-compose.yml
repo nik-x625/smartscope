@@ -8,10 +8,9 @@ services:
     volumes:
       - .:/opt/
     environment:
-      - FLASK_APP=run.py
+      - FLASK_APP=app_main.py
       - FLASK_ENV=development
       - MONGO_URI=mongodb://mongodb_service:27017/smartscope
-    command: python3 run.py
     depends_on:
       - mongodb_service
 

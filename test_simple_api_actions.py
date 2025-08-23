@@ -1,11 +1,6 @@
 import pytest
 import requests
 import uuid
-import sys
-import os
-
-# Add the current directory to Python path so tests can import the app module
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Base URL for the API running in Docker container
 BASE_URL = "http://localhost:9000"
