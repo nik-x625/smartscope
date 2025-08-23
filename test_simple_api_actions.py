@@ -223,13 +223,13 @@ def test_document_with_effort_tracking(client, test_user):
                     "id": "sec-1",
                     "title": "Introduction",
                     "content": "This is the introduction section.",
-                    "effort": 8.0,
+                    "effort": {"effort_value": 8.0, "effort_included": 1},
                     "children": [
                         {
                             "id": "sec-1-1",
                             "title": "Background",
                             "content": "Background information.",
-                            "effort": 4.0
+                            "effort": {"effort_value": 4.0, "effort_included": 1}
                         }
                     ]
                 },
@@ -237,7 +237,7 @@ def test_document_with_effort_tracking(client, test_user):
                     "id": "sec-2",
                     "title": "Methods",
                     "content": "Research methods description.",
-                    "effort": 12.0,
+                    "effort": {"effort_value": 12.0, "effort_included": 1},
                     "children": []
                 }
             ]
@@ -259,9 +259,9 @@ def test_document_with_effort_tracking(client, test_user):
     assert get_response.status_code == 200
     
     doc_data = get_response.json()
-    assert doc_data["content"]["sections"][0]["effort"] == 8.0
-    assert doc_data["content"]["sections"][0]["children"][0]["effort"] == 4.0
-    assert doc_data["content"]["sections"][1]["effort"] == 12.0
+    assert doc_data["content"]["sections"][0]["effort"] == {"effort_value": 8.0, "effort_included": 1}
+    assert doc_data["content"]["sections"][0]["children"][0]["effort"] == {"effort_value": 4.0, "effort_included": 1}
+    assert doc_data["content"]["sections"][1]["effort"] == {"effort_value": 12.0, "effort_included": 1}
     
     # Clean up
     cleanup_user(client, test_user)

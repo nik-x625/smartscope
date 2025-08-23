@@ -1638,11 +1638,20 @@ def get_document(document_id):
                         type: string
                         example: "This section introduces the research topic."
                       effort:
-                        type: number
-                        format: float
-                        minimum: 0
-                        example: 8.0
-                        description: Effort in hours for this section
+                        type: object
+                        properties:
+                          effort_value:
+                            type: number
+                            format: float
+                            minimum: 0
+                            example: 8.0
+                            description: Effort value in hours for this section
+                          effort_included:
+                            type: integer
+                            enum: [0, 1]
+                            example: 1
+                            description: Whether this effort should be included in calculations (1) or excluded (0)
+                        description: Effort information for this section
                       children:
                         type: array
                         items:
@@ -1658,11 +1667,20 @@ def get_document(document_id):
                               type: string
                               example: "Background information goes here."
                             effort:
-                              type: number
-                              format: float
-                              minimum: 0
-                              example: 4.0
-                              description: Effort in hours for this section
+                              type: object
+                              properties:
+                                effort_value:
+                                  type: number
+                                  format: float
+                                  minimum: 0
+                                  example: 4.0
+                                  description: Effort value in hours for this subsection
+                                effort_included:
+                                  type: integer
+                                  enum: [0, 1]
+                                  example: 1
+                                  description: Whether this effort should be included in calculations (1) or excluded (0)
+                              description: Effort information for this subsection
             user_id:
               type: string
               example: "60c72b2f9b1e8b001c8e4b8b"
@@ -1691,13 +1709,13 @@ def get_document(document_id):
                 "id": "sec-1",
                 "title": "Introduction",
                 "content": "This section introduces the research topic.",
-                "effort": 8.0,
+                "effort": {"effort_value": 8.0, "effort_included": 1},
                 "children": [
                   {
                     "id": "sec-1-1",
                     "title": "Background",
                     "content": "Background information goes here.",
-                    "effort": 4.0
+                    "effort": {"effort_value": 4.0, "effort_included": 1}
                   }
                 ]
               },
@@ -1705,7 +1723,7 @@ def get_document(document_id):
                 "id": "sec-2",
                 "title": "Methods",
                 "content": "Description of research methods.",
-                "effort": 12.0,
+                "effort": {"effort_value": 12.0, "effort_included": 1},
                 "children": []
               }
             ]
@@ -1879,11 +1897,20 @@ def create_document():
                         description: Section content text
                         example: "This section introduces the research topic."
                       effort:
-                        type: number
-                        format: float
-                        minimum: 0
-                        example: 8.0
-                        description: Effort in hours for this section
+                        type: object
+                        properties:
+                          effort_value:
+                            type: number
+                            format: float
+                            minimum: 0
+                            example: 8.0
+                            description: Effort value in hours for this section
+                          effort_included:
+                            type: integer
+                            enum: [0, 1]
+                            example: 1
+                            description: Whether this effort should be included in calculations (1) or excluded (0)
+                        description: Effort information for this section
                       children:
                         type: array
                         description: Nested subsections
@@ -1903,11 +1930,20 @@ def create_document():
                               description: Subsection content text
                               example: "Background information goes here."
                             effort:
-                              type: number
-                              format: float
-                              minimum: 0
-                              example: 4.0
-                              description: Effort in hours for this subsection
+                              type: object
+                              properties:
+                                effort_value:
+                                  type: number
+                                  format: float
+                                  minimum: 0
+                                  example: 4.0
+                                  description: Effort value in hours for this subsection
+                                effort_included:
+                                  type: integer
+                                  enum: [0, 1]
+                                  example: 1
+                                  description: Whether this effort should be included in calculations (1) or excluded (0)
+                              description: Effort information for this subsection
             doc_status:
               type: string
               enum: [draft, saved, published]
@@ -1928,13 +1964,13 @@ def create_document():
                 "id": "sec-1",
                 "title": "Introduction",
                 "content": "This section introduces the research topic.",
-                "effort": 8.0,
+                "effort": {"effort_value": 8.0, "effort_included": 1},
                 "children": [
                   {
                     "id": "sec-1-1",
                     "title": "Background",
                     "content": "Background information goes here.",
-                    "effort": 4.0
+                    "effort": {"effort_value": 4.0, "effort_included": 1}
                   }
                 ]
               },
@@ -1942,7 +1978,7 @@ def create_document():
                 "id": "sec-2",
                 "title": "Methods",
                 "content": "Description of research methods.",
-                "effort": 12.0,
+                "effort": {"effort_value": 12.0, "effort_included": 1},
                 "children": []
               }
             ]
@@ -2113,11 +2149,20 @@ def put_document(document_id):
                         type: string
                         example: "This section introduces the research topic."
                       effort:
-                        type: number
-                        format: float
-                        minimum: 0
-                        example: 8.0
-                        description: Effort in hours for this section
+                        type: object
+                        properties:
+                          effort_value:
+                            type: number
+                            format: float
+                            minimum: 0
+                            example: 8.0
+                            description: Effort value in hours for this section
+                          effort_included:
+                            type: integer
+                            enum: [0, 1]
+                            example: 1
+                            description: Whether this effort should be included in calculations (1) or excluded (0)
+                        description: Effort information for this section
                       children:
                         type: array
                         items:
@@ -2133,11 +2178,20 @@ def put_document(document_id):
                               type: string
                               example: "Background information goes here."
                             effort:
-                              type: number
-                              format: float
-                              minimum: 0
-                              example: 4.0
-                              description: Effort in hours for this subsection
+                              type: object
+                              properties:
+                                effort_value:
+                                  type: number
+                                  format: float
+                                  minimum: 0
+                                  example: 4.0
+                                  description: Effort value in hours for this subsection
+                                effort_included:
+                                  type: integer
+                                  enum: [0, 1]
+                                  example: 1
+                                  description: Whether this effort should be included in calculations (1) or excluded (0)
+                              description: Effort information for this subsection
             doc_status:
               type: string
               enum: [draft, saved, published]
@@ -2157,13 +2211,13 @@ def put_document(document_id):
                 "id": "sec-1",
                 "title": "Introduction",
                 "content": "This section introduces the research topic.",
-                "effort": 8.0,
+                "effort": {"effort_value": 8.0, "effort_included": 1},
                 "children": [
                   {
                     "id": "sec-1-1",
                     "title": "Background",
                     "content": "Background information goes here.",
-                    "effort": 4.0
+                    "effort": {"effort_value": 4.0, "effort_included": 1}
                   }
                 ]
               },
@@ -2171,7 +2225,7 @@ def put_document(document_id):
                 "id": "sec-2",
                 "title": "Methods",
                 "content": "Description of research methods.",
-                "effort": 12.0,
+                "effort": {"effort_value": 12.0, "effort_included": 1},
                 "children": []
               }
             ]

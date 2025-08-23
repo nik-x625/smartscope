@@ -1,12 +1,12 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 @dataclass
 class Section:
     title: str
     content: str = ""
     subsections: List['Section'] = field(default_factory=list)
-    effort: Optional[float] = None  # Simple effort in hours
+    effort: Optional[Dict[str, float]] = None  # New format: {"effort_value": float, "effort_included": int}
 
     def to_dict(self):
         return {
@@ -21,7 +21,7 @@ class Chapter:
     title: str
     content: str = ""
     sections: List[Section] = field(default_factory=list)
-    effort: Optional[float] = None  # Simple effort in hours
+    effort: Optional[Dict[str, float]] = None  # New format: {"effort_value": float, "effort_included": int}
 
     def to_dict(self):
         return {
