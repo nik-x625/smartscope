@@ -37,4 +37,4 @@ CYAN='\[\033[1;36m\]'
 NC='\[\033[0m\]'
 
 #PS1="$yellow[$BLUE\t$yellow][LAB-$red\H$yellow][$blue\w$grey$yellow]$NC# "
-PS1="$yellow[$BLUE\t$yellow][PROD-$red\H$yellow][$blue\w$grey$yellow]$NC# "
+PS1="$yellow[$BLUE\t$yellow][PROD-BE-$red\H$yellow][$blue\w$grey$yellow]$NC# "
