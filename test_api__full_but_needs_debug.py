@@ -7,7 +7,8 @@ import uuid
 from datetime import datetime
 
 # Configuration for testing the Flask API running in Docker container
-BASE_URL = "http://localhost:9000"  # Docker container port
+from config import Config
+BASE_URL = Config.BASE_URL
 API_BASE = f"{BASE_URL}/api"
 
 def get_unique_user():

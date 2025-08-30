@@ -3,8 +3,7 @@ services:
     build: .
     image: smartscope_be_image
     container_name: smartscope_be_container
-    ports:
-      - "9000:9000"
+    # Do NOT expose port 9000 publicly
     volumes:
       - .:/opt/
     environment:
@@ -13,16 +12,34 @@ services:
       - MONGO_URI=mongodb://mongodb_service:27017/smartscope
     depends_on:
       - mongodb_service
-
     labels:
       - "traefik.enable=true"
+      # Only expose Swagger (/apidocs) to public via Traefik
+
+      # Single backend service for all API routes
+      - "traefik.http.services.smartscope24-backend.loadbalancer.server.port=9000"
+
+      # Swagger /apidocs
+      - "traefik.http.routers.smartscope24-apidocs.rule=Host(`smartscope24.com`) && PathPrefix(`/apidocs`)"
+      - "traefik.http.routers.smartscope24-apidocs.entrypoints=websecure"
+      - "traefik.http.routers.smartscope24-apidocs.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.smartscope24-apidocs.service=smartscope24-backend"
+
+      # API routes
       - "traefik.http.routers.smartscope24-api.rule=Host(`smartscope24.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.smartscope24-api.entrypoints=websecure"
       - "traefik.http.routers.smartscope24-api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.smartscope24-api.loadbalancer.server.port=9000"
+      - "traefik.http.routers.smartscope24-api.service=smartscope24-backend"
 
+      # Flasgger static files
+      - "traefik.http.routers.smartscope24-flasgger.rule=Host(`smartscope24.com`) && PathPrefix(`/flasgger_static`)"
+      - "traefik.http.routers.smartscope24-flasgger.entrypoints=websecure"
+      - "traefik.http.routers.smartscope24-flasgger.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.smartscope24-flasgger.service=smartscope24-backend"
+    restart: unless-stopped
     networks:
-      - web        
+      - internal  # internal access for frontend API calls
+      - web       # needed for Traefik routing
 
   mongodb_service:
     container_name: smartscope_mongodb_container
@@ -31,15 +48,15 @@ services:
       - "27017:27017"
     volumes:
       - /opt/mongodb_data:/data/db
-
+    restart: unless-stopped
     networks:
-      - web          
-
-
+      - web
 
 
 networks:
   web:
     external: true
+  internal:
+    internal: true
 
 

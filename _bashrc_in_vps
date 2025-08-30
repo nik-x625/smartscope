@@ -23,8 +23,8 @@ alias pip=pip3
 alias ql='cd /opt/qlines_app'
 alias teh='ssh -p 2277 root@localhost'
 alias muc='ssh -p 2266 root@localhost'
-
 alias git_log='git log --graph --oneline --decorate --all'
+
 
 ### Docker cli aliases
 alias dps1='docker ps -a --format="table {{.ID}}\t{{.Image}}\t{{.Command}}\t{{.Status}}\t{{.Names}}"'
@@ -36,6 +36,7 @@ alias dps3='docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status
 ### Zigbee, Homeassistant, MQTT, Mosquitto, etc.
 alias mqtt='mosquitto_sub -t "#" -v'
 
+
 ### K8s aliases
 alias kga='kubectl get all,secret,configmap,pvc,pv,ingress,serviceaccount'
 alias kgi='kubectl get all,ingress'
@@ -45,23 +46,10 @@ alias kgi='kubectl get all,ingress'
 alias back="cd /opt/smartscope_back"
 alias front="cd /opt/smartscope_front"
 alias plt="docker exec -it $(docker ps  | grep 'smartscope_be_container' | awk '{print $1}') /bin/bash"
-alias tests_back="docker exec -it $(docker ps  | grep 'smartscope_be_container' | awk '{print $1}') pytest -v /opt/test_api.py"
+alias tests_back1="docker exec -it $(docker ps  | grep 'smartscope_be_container' | awk '{print $1}') pytest -v /opt/test_simple_api_actions.py"
+alias tests_back2="docker exec -it $(docker ps  | grep 'smartscope_be_container' | awk '{print $1}') pytest -v /opt/test_simple_api_file_image_for_editor.py"
 alias mongo="docker exec -it $(docker ps  | grep 'mongo' | awk '{print $1}') mongosh smartscope"
-#alias logs='tail /opt/smartscope_back/logs/* -f'
-#alias mongo="docker exec -it $(docker ps  | grep 'qlines_mongo_container' | awk '{print $1}') mongosh -u root -p example --authenticationDatabase admin"
-
-#LOG_CONTAINERS=("smartscope_fe_container" "smartscope_be_container" "traefik")
-#alias logs='docker logs -f $(printf "%s " "${LOG_CONTAINERS[@]}")'
 
 CONTAINERS=(smartscope_fe_container smartscope_be_container traefik smartscope_mongodb_container)
-#alias logs='for container in "${CONTAINERS[@]}"; do echo "Logs for $container:"; docker logs -f "$container"; echo "----------------"; done'
-#alias logs='for container in "${CONTAINERS[@]}"; do docker logs --follow "$container" --prefix "[$container]" & done; wait'
 alias logs='for container in "${CONTAINERS[@]}"; do docker logs --follow "$container" 2>&1 | sed "s/^/[$container] /" & done; wait'
-
-#source /usr/share/bash-completion/bash_completion
-#source <(k3s kubectl completion bash)
- 
-#alias k='k3s kubectl'
-complete -o default -F __start_kubectl k
-
-
+alias logs_tr="docker exec -it $(docker ps  | grep 'traefik' | awk '{print $1}') tail /var/log/traefik/access.log -f"

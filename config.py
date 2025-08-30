@@ -6,6 +6,7 @@ class Config:
     DEBUG = os.getenv("DEBUG", "True") == "True"
     PORT = int(os.getenv("PORT", 9000))
     HOST = os.getenv("HOST", "0.0.0.0")
+    BASE_URL = os.getenv("BASE_URL", "https://smartscope24.com")
 
     # File uploads
     UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")

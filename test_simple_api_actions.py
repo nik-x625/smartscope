@@ -3,7 +3,8 @@ import requests
 import uuid
 
 # Base URL for the API running in Docker container
-BASE_URL = "http://localhost:9000"
+from config import Config
+BASE_URL = Config.BASE_URL
 API_BASE = f"{BASE_URL}/api"
 
 @pytest.fixture
