@@ -1,0 +1,67 @@
+# ~/.bashrc: executed by bash(1) for non-login shells.
+
+# Note: PS1 and umask are already set in /etc/profile. You should not
+# need this unless you want different defaults for root.
+# PS1='${debian_chroot:+($debian_chroot)}\h:\w\$ '
+# umask 022
+
+# You may uncomment the following lines if you want `ls' to be colorized:
+# export LS_OPTIONS='--color=auto'
+# eval "$(dircolors)"
+# alias ls='ls $LS_OPTIONS'
+# alias ll='ls $LS_OPTIONS -l'
+# alias l='ls $LS_OPTIONS -lA'
+#
+# Some more alias to avoid making mistakes:
+# alias rm='rm -i'
+# alias cp='cp -i'
+# alias mv='mv -i'
+#
+#
+alias p="ps -ef | egrep 'apache|sql|mongo|python'"
+alias pip=pip3
+alias ql='cd /opt/qlines_app'
+alias teh='ssh -p 2277 root@localhost'
+alias muc='ssh -p 2266 root@localhost'
+
+alias git_log='git log --graph --oneline --decorate --all'
+
+### Docker cli aliases
+alias dps1='docker ps -a --format="table {{.ID}}\t{{.Image}}\t{{.Command}}\t{{.Status}}\t{{.Names}}"'
+alias tmux_start='tmux new-session -t res -d;tmux new-session -t log -d;tmux new-session -t mqtt -d;tmux new-session -t mongo -d;tmux new-session -t client -d;tmux new-session -t test -d;'
+alias dps2='docker ps -a --format '\''table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.RunningFor}}\t{{.Networks}}'\'
+alias dps3='docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | awk '\''NR>1{print $0 "\n"} NR==1{print $0}'\'''
+
+
+### Zigbee, Homeassistant, MQTT, Mosquitto, etc.
+alias mqtt='mosquitto_sub -t "#" -v'
+
+### K8s aliases
+alias kga='kubectl get all,secret,configmap,pvc,pv,ingress,serviceaccount'
+alias kgi='kubectl get all,ingress'
+
+
+# SmartScope aliases
+alias back="cd /opt/smartscope_back"
+alias front="cd /opt/smartscope_front"
+alias plt="docker exec -it $(docker ps  | grep 'smartscope_be_container' | awk '{print $1}') /bin/bash"
+alias tests_back="docker exec -it $(docker ps  | grep 'smartscope_be_container' | awk '{print $1}') pytest -v /opt/test_api.py"
+alias mongo="docker exec -it $(docker ps  | grep 'mongo' | awk '{print $1}') mongosh smartscope"
+#alias logs='tail /opt/smartscope_back/logs/* -f'
+#alias mongo="docker exec -it $(docker ps  | grep 'qlines_mongo_container' | awk '{print $1}') mongosh -u root -p example --authenticationDatabase admin"
+
+#LOG_CONTAINERS=("smartscope_fe_container" "smartscope_be_container" "traefik")
+#alias logs='docker logs -f $(printf "%s " "${LOG_CONTAINERS[@]}")'
+
+CONTAINERS=(smartscope_fe_container smartscope_be_container traefik smartscope_mongodb_container)
+#alias logs='for container in "${CONTAINERS[@]}"; do echo "Logs for $container:"; docker logs -f "$container"; echo "----------------"; done'
+#alias logs='for container in "${CONTAINERS[@]}"; do docker logs --follow "$container" --prefix "[$container]" & done; wait'
+alias logs='for container in "${CONTAINERS[@]}"; do docker logs --follow "$container" 2>&1 | sed "s/^/[$container] /" & done; wait'
+
+#source /usr/share/bash-completion/bash_completion
+#source <(k3s kubectl completion bash)
+ 
+#alias k='k3s kubectl'
+complete -o default -F __start_kubectl k
+
+
