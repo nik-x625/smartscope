@@ -17,25 +17,25 @@ services:
       # Only expose Swagger (/apidocs) to public via Traefik
 
       # Single backend service for all API routes
-      - "traefik.http.services.smartscope24-backend.loadbalancer.server.port=9000"
+      - "traefik.http.services.smartscope-backend.loadbalancer.server.port=9000"
 
       # Swagger /apidocs
-      - "traefik.http.routers.smartscope24-apidocs.rule=Host(`smartscope24.com`) && PathPrefix(`/apidocs`)"
-      - "traefik.http.routers.smartscope24-apidocs.entrypoints=websecure"
-      - "traefik.http.routers.smartscope24-apidocs.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.smartscope24-apidocs.service=smartscope24-backend"
+      - "traefik.http.routers.smartscope-apidocs.rule=Host(`smart-scope.io`) && PathPrefix(`/apidocs`)"
+      - "traefik.http.routers.smartscope-apidocs.entrypoints=websecure"
+      - "traefik.http.routers.smartscope-apidocs.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.smartscope-apidocs.service=smartscope-backend"
 
       # API routes
-      - "traefik.http.routers.smartscope24-api.rule=Host(`smartscope24.com`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.smartscope24-api.entrypoints=websecure"
-      - "traefik.http.routers.smartscope24-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.smartscope24-api.service=smartscope24-backend"
+      - "traefik.http.routers.smartscope-api.rule=Host(`smart-scope.io`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.smartscope-api.entrypoints=websecure"
+      - "traefik.http.routers.smartscope-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.smartscope-api.service=smartscope-backend"
 
       # Flasgger static files
-      - "traefik.http.routers.smartscope24-flasgger.rule=Host(`smartscope24.com`) && PathPrefix(`/flasgger_static`)"
-      - "traefik.http.routers.smartscope24-flasgger.entrypoints=websecure"
-      - "traefik.http.routers.smartscope24-flasgger.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.smartscope24-flasgger.service=smartscope24-backend"
+      - "traefik.http.routers.smartscope-flasgger-static.rule=Host(`smart-scope.io`) && PathPrefix(`/flasgger_static`)"
+      - "traefik.http.routers.smartscope-flasgger-static.entrypoints=websecure"
+      - "traefik.http.routers.smartscope-flasgger-static.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.smartscope-flasgger-static.service=smartscope-backend"
     restart: unless-stopped
     networks:
       - internal  # internal access for frontend API calls
