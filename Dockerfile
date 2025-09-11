@@ -14,6 +14,9 @@ RUN apt-get update -y && \
         build-essential \
         libssl-dev \
         libffi-dev && \
+        net-tools \
+        tcpdump \
+        tcpflow \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
