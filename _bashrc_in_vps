@@ -53,4 +53,4 @@ alias mongo="docker exec -it $(docker ps  | grep 'mongo' | awk '{print $1}') mon
 CONTAINERS=(smartscope_fe_container smartscope_be_container traefik smartscope_mongodb_container)
 alias logs='for container in "${CONTAINERS[@]}"; do docker logs --follow "$container" 2>&1 | sed "s/^/[$container] /" & done; wait'
 alias logs_tr="tail /opt/proxy_traefik/logs/access.log -f | jq"
-
+alias site="cd /opt/smartscope_website_replit_v2"
